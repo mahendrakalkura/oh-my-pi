@@ -37,21 +37,22 @@ The glyph is `theme.icon.package`, not `theme.icon.subscription`: the cost segme
 
 Opt in per machine by listing `profile` in `statusLine.leftSegments`, which the dotfiles `config.yml` does.
 
-## feat(slash-commands): copy the whole conversation on bare /copy
+## feat(slash-commands): copy the last answer on bare /copy
 
-Commits `2cdcf0d281` and `275d0062c1`.
+Commits `2cdcf0d281`, `275d0062c1` and `6af72d4c2d`.
 
-Upstream opens the transcript picker on bare `/copy`, so copying everything took a selector round trip. It now copies the conversation straight to the clipboard. Unlike `/dump` it writes no LLM-request JSON sidecar, so copying never leaves a file on disk.
+Upstream opens the transcript picker on bare `/copy`, so taking an answer whole meant descending through a selector. Bare `/copy` now puts the entire last assistant message on the clipboard, with no picker and no block selection. `/copy all` takes the whole conversation, `/copy pick` still opens the picker, and `code` and `cmd` are unchanged. Unlike `/dump` none of these writes an LLM-request JSON sidecar, so copying never leaves a file on disk.
 
-The first attempt reused `session.formatSessionAsText()`, which is `/dump`'s payload: it leads with the system prompt, the model line and the tool inventory, so a paste showed the prompt rather than the exchange. The follow-up commit renders the transcript alone.
+Two wrong readings preceded the current one, both recorded because the mistake is easy to repeat: the first commit reused `session.formatSessionAsText()`, which is `/dump`'s payload and leads with the system prompt and tool inventory; the second dropped that header but still copied the entire transcript. "Copy all" meant the whole of the last answer, not the whole session.
 
 Changed:
 
-- `packages/coding-agent/src/session/session-dump-format.ts`: `formatTranscriptText(messages)` exports the transcript half of the dump renderer with no header.
-- `packages/coding-agent/src/slash-commands/builtin-collaboration.ts`: the bare branch copies that transcript, reports "No messages to copy yet." on an empty session, and the picker moves to `/copy pick`. `code` and `cmd` are unchanged; the usage string and description were updated.
-- `packages/coding-agent/test/slash-commands/copy.test.ts`: the case asserting the picker on bare `/copy` was replaced by cases covering the transcript copy, the absence of the dump header, the empty session, and `/copy pick`.
+- `packages/coding-agent/src/modes/utils/copy-targets.ts`: `extractLastAssistantText(messages)` walks the transcript backwards for the newest assistant message's text, beside the existing code-block and command extractors.
+- `packages/coding-agent/src/session/session-dump-format.ts`: `formatTranscriptText(messages)` exports the transcript half of the dump renderer with no header; `/copy all` uses it.
+- `packages/coding-agent/src/slash-commands/builtin-collaboration.ts`: the bare branch copies the last answer and reports "No answer to copy yet." when none exists; `all`, `pick`, `code` and `cmd` follow. The usage string and description were updated.
+- `packages/coding-agent/test/slash-commands/copy.test.ts`: seven cases, including that bare `/copy` takes the last message entire and leaves earlier turns out, that `/copy all` carries the transcript without the dump header, and that a user-only session copies nothing.
 
-Verified live: after a bash-only turn the clipboard held `## Bash Execution` and its output, with no `## System Prompt`, `## Configuration` or `## Available Tools`.
+Verified live: after an answer of `alpha-beta-gamma` the clipboard held exactly that, 17 bytes, and `/copy all` then held the 79-byte `## User` and `## Assistant` transcript.
 
 ## feat(status-line): add a turn stopwatch segment
 
