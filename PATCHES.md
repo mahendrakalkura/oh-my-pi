@@ -48,13 +48,30 @@ Changed:
 - `packages/coding-agent/src/slash-commands/builtin-collaboration.ts`: the bare branch copies the transcript, reports "No messages to copy yet." on an empty session, and the picker moves to `/copy pick`. `code` and `cmd` are unchanged; the usage string and description were updated.
 - `packages/coding-agent/test/slash-commands/copy.test.ts`: the case asserting the picker on bare `/copy` was replaced by three cases covering the full copy, the empty session, and `/copy pick`.
 
+## feat(status-line): add a turn stopwatch segment
+
+Commit `f24352490f`.
+
+Nothing reported how long the last turn took. `turnElapsedMs` goes null the moment the agent yields, and the `pi` brand timer is whole-unit only, so it reads `1m` for anything between one and two minutes. The `turn` segment renders the running turn live while the agent works, then that turn's duration once it settles.
+
+Changed:
+
+- `packages/coding-agent/src/modes/components/status-line/component.ts`: `ActiveMeter` gains `lastTurnMs`, `markActivityEnd` records each closed window, `resetActiveTime` drops it, and `getLastTurnMs()` joins the sibling accessors feeding the segment context.
+- `packages/coding-agent/src/modes/components/status-line/types.ts`: `SegmentContext.lastTurnMs`, optional in the manner of `brandFgAnsi` so the five hand-built preview and test fixtures need no edit.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `turnSegment` plus `formatTurnDuration`, which renders whole seconds instead of `formatDuration`'s tenths so the value does not churn on every 80ms spinner repaint. The settled value carries `theme.icon.rewind` rather than `theme.icon.time`, since the number alone cannot say whether it is still counting.
+- `packages/coding-agent/src/config/settings-schema.ts`: `turn` added to the `StatusLineSegmentId` union.
+- `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: gallery variants for running, settled, and pre-first-turn.
+- `packages/coding-agent/test/status-line-turn.test.ts`: new, six cases covering both faces, the running-over-settled precedence, hour compression, the hidden state before the first turn, and the meter's record-and-reset behavior including an unmatched `markActivityEnd`.
+
+Verified live: the bar ticked `0s`, `1s`, `2s` during a turn, then showed the rewind icon with `2s` once it finished.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
 
 `startup.quiet: true` removes the welcome panel, the logo, the Tips column, the LSP list, the recent-sessions column, the "Tip:" line under the box and the "Connected to MCP servers" notice, including the mid-session reprint from the `/mcp` dashboard. One key covers all of it; there is no finer granularity, and it also silences LSP startup notices, the model-scope banner and xdev mount notices. The panel can still flash once per directory because `cli.ts` prepaints from a per-cwd cache of the previous run's preferences before settings load.
 
-`statusLine.leftSegments` lists `profile` to enable the segment above.
+`statusLine.leftSegments` reads `pi, profile, model, path, turn, time_spent, context_pct, cost, usage`, which enables the two segments added above and places the profile ahead of the model.
 
 ## Working on this branch
 
