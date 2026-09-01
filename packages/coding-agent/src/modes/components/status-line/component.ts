@@ -297,6 +297,8 @@ function resolveWorktreeContext(cwd: string): WorktreeContext | null {
 interface ActiveMeter {
 	activeMs: number;
 	activeStartedAt: number | null;
+	/** Duration of the last closed `agent_start`→`agent_end` window, or null before the first. */
+	lastTurnMs: number | null;
 	sessionFile: string | undefined;
 }
 
@@ -632,6 +634,7 @@ export class StatusLineComponent implements Component {
 		const meter = this.#meter();
 		meter.activeMs = 0;
 		meter.activeStartedAt = null;
+		meter.lastTurnMs = null;
 	}
 
 	/**
@@ -656,7 +659,9 @@ export class StatusLineComponent implements Component {
 	markActivityEnd(): void {
 		const meter = this.#meter();
 		if (meter.activeStartedAt === null) return;
-		meter.activeMs += Math.max(0, Date.now() - meter.activeStartedAt);
+		const turnMs = Math.max(0, Date.now() - meter.activeStartedAt);
+		meter.activeMs += turnMs;
+		meter.lastTurnMs = turnMs;
 		meter.activeStartedAt = null;
 	}
 
@@ -677,6 +682,14 @@ export class StatusLineComponent implements Component {
 	getTurnElapsedMs(): number | null {
 		const startedAt = this.#meter().activeStartedAt;
 		return startedAt === null ? null : Math.max(0, Date.now() - startedAt);
+	}
+
+	/**
+	 * Duration of the last completed turn, or null before the first one closes.
+	 * Feeds the `turn` segment while the agent is idle.
+	 */
+	getLastTurnMs(): number | null {
+		return this.#meter().lastTurnMs;
 	}
 
 	/**
@@ -702,7 +715,7 @@ export class StatusLineComponent implements Component {
 			}
 		}
 		if (!meter) {
-			meter = { activeMs: 0, activeStartedAt: null, sessionFile: currentFile };
+			meter = { activeMs: 0, activeStartedAt: null, lastTurnMs: null, sessionFile: currentFile };
 			this.#activeMeters.set(this.session, meter);
 		}
 		return meter;
@@ -1876,6 +1889,7 @@ export class StatusLineComponent implements Component {
 			subagentCount: this.#subagentCount,
 			activeMs: this.getActiveMs(),
 			turnElapsedMs,
+			lastTurnMs: this.getLastTurnMs(),
 			brandFgAnsi: this.#brandFgAnsi(turnElapsedMs !== null, sessionAccentEnabled),
 			git: {
 				branch: gitBranch,

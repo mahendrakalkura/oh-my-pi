@@ -665,6 +665,34 @@ const timeSpentSegment: StatusLineSegment = {
 	},
 };
 
+/**
+ * Turn stopwatch: the running turn's elapsed time while the agent works, then
+ * the duration that turn took once it yields. Whole seconds rather than
+ * `formatDuration`'s tenths, which would churn on every spinner repaint.
+ */
+const turnSegment: StatusLineSegment = {
+	id: "turn",
+	render(ctx) {
+		if (ctx.turnElapsedMs != null) {
+			return { content: withIcon(theme.icon.time, formatTurnDuration(ctx.turnElapsedMs)), visible: true };
+		}
+		if (ctx.lastTurnMs == null) return { content: "", visible: false };
+
+		// A different icon for the settled value: the number alone cannot say
+		// whether it is still counting, and the brand spinner is a segment away.
+		return { content: withIcon(theme.icon.rewind, formatTurnDuration(ctx.lastTurnMs)), visible: true };
+	},
+};
+
+function formatTurnDuration(ms: number): string {
+	const seconds = Math.floor(ms / 1000);
+	if (seconds < 60) return `${seconds}s`;
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return seconds % 60 > 0 ? `${minutes}m${seconds % 60}s` : `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	return minutes % 60 > 0 ? `${hours}h${minutes % 60}m` : `${hours}h`;
+}
+
 const timeSegment: StatusLineSegment = {
 	id: "time",
 	render(ctx) {
@@ -903,6 +931,7 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	context_pct: contextPctSegment,
 	context_total: contextTotalSegment,
 	time_spent: timeSpentSegment,
+	turn: turnSegment,
 	time: timeSegment,
 	session: sessionSegment,
 	hostname: hostnameSegment,

@@ -69,6 +69,7 @@ export function createGallerySegmentContext(sessionOptions?: GallerySessionOptio
 		subagentCount: 3,
 		activeMs: 372_000,
 		turnElapsedMs: null,
+		lastTurnMs: 47_000,
 		git: {
 			branch: "gallery/reference",
 			status: { staged: 2, unstaged: 3, untracked: 1 },
@@ -94,6 +95,12 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 		case "status":
 			return [
 				{ label: "multiple extension statuses", context: { hookStatuses: ["Indexer ready", "Tests passing"] } },
+			];
+		case "turn":
+			return [
+				{ label: "running", context: { turnElapsedMs: 92_000 } },
+				{ label: "last turn", context: { turnElapsedMs: null } },
+				{ label: "before the first turn", context: { turnElapsedMs: null, lastTurnMs: null } },
 			];
 		case "model":
 			return [

@@ -136,6 +136,13 @@ export interface SegmentContext {
 	 */
 	turnElapsedMs: number | null;
 	/**
+	 * Duration of the last completed turn in ms; null before the first one
+	 * closes. The `turn` segment renders it whenever the agent is idle.
+	 * Optional like {@link brandFgAnsi}: preview and test fixtures build this
+	 * context by hand and have no turn history to report.
+	 */
+	lastTurnMs?: number | null;
+	/**
 	 * Sampled foreground ANSI for the `pi` brand segment — tweened between dim
 	 * gray (idle) and the accent (working) across turn edges (rust omp's
 	 * status-band brand fade). Absent in direct-segment fixtures and previews,

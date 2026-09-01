@@ -253,6 +253,7 @@ export type StatusLineSegmentId =
 	| "context_pct"
 	| "context_total"
 	| "time_spent"
+	| "turn"
 	| "time"
 	| "session"
 	| "hostname"
