@@ -491,11 +491,25 @@ export const BUILTIN_COLLABORATION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpe
 	{
 		name: "copy",
 		icon: "copy",
-		description: "Pick text or code from the conversation to copy",
+		description: "Copy the whole conversation (code, cmd, or pick for parts)",
 		allowArgs: true,
 		handleTui: async (command, runtime) => {
 			const arg = command.args.trim().toLowerCase();
+			// Bare /copy takes the whole transcript with no picker. Unlike /dump it
+			// writes no LLM-request sidecar, so copying never leaves a file on disk.
 			if (!arg) {
+				const text = runtime.ctx.session.formatSessionAsText();
+				if (!text) {
+					runtime.ctx.showStatus("No messages to copy yet.");
+					runtime.ctx.editor.setText("");
+					return;
+				}
+				await copyToClipboard(text);
+				runtime.ctx.showStatus("Copied the conversation to clipboard");
+				runtime.ctx.editor.setText("");
+				return;
+			}
+			if (arg === "pick") {
 				runtime.ctx.showCopySelector();
 				runtime.ctx.editor.setText("");
 				return;
@@ -536,7 +550,7 @@ export const BUILTIN_COLLABORATION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpe
 				runtime.ctx.editor.setText("");
 				return;
 			}
-			runtime.ctx.showStatus("Usage: /copy [code|cmd|link]");
+			runtime.ctx.showStatus("Usage: /copy [code|cmd|link|pick]");
 			runtime.ctx.editor.setText("");
 		},
 	},
