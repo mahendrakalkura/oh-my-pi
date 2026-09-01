@@ -691,22 +691,29 @@ const timeSegment: StatusLineSegment = {
 	render(ctx) {
 		const opts = ctx.options.time ?? {};
 		const now = ctx.now ?? new Date();
+		const twelveHour = opts.format === "12h";
 
 		let hours = now.getHours();
 		let suffix = "";
-		if (opts.format === "12h") {
+		if (twelveHour) {
 			suffix = hours >= 12 ? "pm" : "am";
 			hours = hours % 12 || 12;
 		}
 
-		const mins = now.getMinutes().toString().padStart(2, "0");
-		let timeStr = `${hours}:${mins}`;
-		if (opts.showSeconds) {
-			timeStr += `:${now.getSeconds().toString().padStart(2, "0")}`;
-		}
-		timeStr += suffix;
+		// The 24h clock pads the hour only under `showDate`, where the segment reads
+		// as a log stamp and a one-digit hour would shift the whole field's width.
+		const hourText = twelveHour || !opts.showDate ? String(hours) : String(hours).padStart(2, "0");
+		const parts = [hourText, now.getMinutes().toString().padStart(2, "0")];
+		if (opts.showSeconds) parts.push(now.getSeconds().toString().padStart(2, "0"));
 
-		return { content: withIcon(theme.icon.time, statusValue(ctx, timeStr)), visible: true };
+		let stamp = parts.join(":") + suffix;
+		if (opts.showDate) {
+			const month = (now.getMonth() + 1).toString().padStart(2, "0");
+			const day = now.getDate().toString().padStart(2, "0");
+			stamp = `${now.getFullYear()}-${month}-${day} ${stamp}`;
+		}
+
+		return { content: withIcon(theme.icon.time, statusValue(ctx, stamp)), visible: true };
 	},
 };
 
