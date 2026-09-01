@@ -39,14 +39,19 @@ Opt in per machine by listing `profile` in `statusLine.leftSegments`, which the 
 
 ## feat(slash-commands): copy the whole conversation on bare /copy
 
-Commit `2cdcf0d281`.
+Commits `2cdcf0d281` and `275d0062c1`.
 
-Upstream opens the transcript picker on bare `/copy`, so copying everything took a selector round trip. It now copies `session.formatSessionAsText()` straight to the clipboard. Unlike `/dump` it writes no LLM-request JSON sidecar, so copying never leaves a file on disk.
+Upstream opens the transcript picker on bare `/copy`, so copying everything took a selector round trip. It now copies the conversation straight to the clipboard. Unlike `/dump` it writes no LLM-request JSON sidecar, so copying never leaves a file on disk.
+
+The first attempt reused `session.formatSessionAsText()`, which is `/dump`'s payload: it leads with the system prompt, the model line and the tool inventory, so a paste showed the prompt rather than the exchange. The follow-up commit renders the transcript alone.
 
 Changed:
 
-- `packages/coding-agent/src/slash-commands/builtin-collaboration.ts`: the bare branch copies the transcript, reports "No messages to copy yet." on an empty session, and the picker moves to `/copy pick`. `code` and `cmd` are unchanged; the usage string and description were updated.
-- `packages/coding-agent/test/slash-commands/copy.test.ts`: the case asserting the picker on bare `/copy` was replaced by three cases covering the full copy, the empty session, and `/copy pick`.
+- `packages/coding-agent/src/session/session-dump-format.ts`: `formatTranscriptText(messages)` exports the transcript half of the dump renderer with no header.
+- `packages/coding-agent/src/slash-commands/builtin-collaboration.ts`: the bare branch copies that transcript, reports "No messages to copy yet." on an empty session, and the picker moves to `/copy pick`. `code` and `cmd` are unchanged; the usage string and description were updated.
+- `packages/coding-agent/test/slash-commands/copy.test.ts`: the case asserting the picker on bare `/copy` was replaced by cases covering the transcript copy, the absence of the dump header, the empty session, and `/copy pick`.
+
+Verified live: after a bash-only turn the clipboard held `## Bash Execution` and its output, with no `## System Prompt`, `## Configuration` or `## Available Tools`.
 
 ## feat(status-line): add a turn stopwatch segment
 
@@ -65,13 +70,29 @@ Changed:
 
 Verified live: the bar ticked `0s`, `1s`, `2s` during a turn, then showed the rewind icon with `2s` once it finished.
 
+## feat(status-line): drop the duplicate brand turn timer
+
+Commit `27ba74dd4f`.
+
+The `pi` brand segment printed a whole-unit turn timer beside its spinner, so with `turn` configured the running turn appeared twice, once as `1m` and once as `1m30s`. The brand keeps the spinner as the activity signal and `turn` owns the clock. `brandTimer` went with it, as nothing else called it.
+
+## feat(status-line): let the time segment show the date
+
+Commit `26bdb49f3a`.
+
+The `time` segment printed a bare clock. `segmentOptions.time.showDate` turns it into a `yyyy-mm-dd hh:mm:ss` log stamp. In that mode the 24h hour is zero-padded, since an unpadded hour changes the field's width every morning and shifts the whole bar.
+
+Changed: `StatusLineSegmentOptions.time` in `status-line/types.ts` and `timeSegment` in `status-line/segments.ts`.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
 
 `startup.quiet: true` removes the welcome panel, the logo, the Tips column, the LSP list, the recent-sessions column, the "Tip:" line under the box and the "Connected to MCP servers" notice, including the mid-session reprint from the `/mcp` dashboard. One key covers all of it; there is no finer granularity, and it also silences LSP startup notices, the model-scope banner and xdev mount notices. The panel can still flash once per directory because `cli.ts` prepaints from a per-cwd cache of the previous run's preferences before settings load.
 
-`statusLine.leftSegments` reads `pi, profile, model, path, turn, time_spent, context_pct, cost, usage`, which enables the two segments added above and places the profile ahead of the model.
+`statusLine.leftSegments` reads `pi, profile, model, path, turn, time_spent, context_pct, time, cost, usage`, which enables the segments added above and places the profile ahead of the model. `segmentOptions.time` sets `format: 24h`, `showDate: true` and `showSeconds: true`.
+
+`display.showTokenUsage: false` hides the per-turn usage row under each answer. Every profile's own config turns it on; the shared overlay outranks them, so one key switches it off everywhere.
 
 ## Working on this branch
 
