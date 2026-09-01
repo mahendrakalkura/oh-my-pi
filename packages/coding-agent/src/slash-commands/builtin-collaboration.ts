@@ -8,7 +8,12 @@ import { parseExportArgs } from "../export/html/args";
 import { shareSession } from "../export/share";
 import { theme } from "../modes/theme/theme";
 import type { InteractiveModeContext } from "../modes/types";
-import { extractLastCodeBlock, extractLastCommand, extractLastLink } from "../modes/utils/copy-targets";
+import {
+	extractLastAssistantText,
+	extractLastCodeBlock,
+	extractLastCommand,
+	extractLastLink,
+} from "../modes/utils/copy-targets";
 import { formatTranscriptText } from "../session/session-dump-format";
 import { restartBrowserForModeChange } from "../tools/browser";
 import { openPath } from "../utils/open";
@@ -492,14 +497,25 @@ export const BUILTIN_COLLABORATION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpe
 	{
 		name: "copy",
 		icon: "copy",
-		description: "Copy the whole conversation (code, cmd, or pick for parts)",
+		description: "Copy the last answer whole (all, code, cmd, or pick for parts)",
 		allowArgs: true,
 		handleTui: async (command, runtime) => {
 			const arg = command.args.trim().toLowerCase();
-			// Bare /copy takes the conversation with no picker. It deliberately skips
-			// formatSessionAsText: that is /dump's payload, which leads with the system
-			// prompt and the tool inventory and buries the exchange being copied.
+			// Bare /copy takes the last answer entire, with no picker and no block
+			// selection. The whole conversation moves to `/copy all`.
 			if (!arg) {
+				const text = extractLastAssistantText(runtime.ctx.session.messages);
+				if (!text) {
+					runtime.ctx.showStatus("No answer to copy yet.");
+					runtime.ctx.editor.setText("");
+					return;
+				}
+				await copyToClipboard(text);
+				runtime.ctx.showStatus("Copied the last answer to clipboard");
+				runtime.ctx.editor.setText("");
+				return;
+			}
+			if (arg === "all") {
 				const text = formatTranscriptText(runtime.ctx.session.messages);
 				if (!text) {
 					runtime.ctx.showStatus("No messages to copy yet.");
@@ -552,7 +568,7 @@ export const BUILTIN_COLLABORATION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpe
 				runtime.ctx.editor.setText("");
 				return;
 			}
-			runtime.ctx.showStatus("Usage: /copy [code|cmd|link|pick]");
+			runtime.ctx.showStatus("Usage: /copy [all|code|cmd|link|pick]");
 			runtime.ctx.editor.setText("");
 		},
 	},

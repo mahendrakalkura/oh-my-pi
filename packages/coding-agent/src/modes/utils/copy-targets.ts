@@ -99,6 +99,15 @@ export function extractLastCodeBlock(messages: readonly AgentMessage[]): CodeBlo
 	return undefined;
 }
 
+/** Walk the transcript backwards for the text of the most recent assistant message. */
+export function extractLastAssistantText(messages: readonly AgentMessage[]): string | undefined {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const text = assistantText(messages[i]);
+		if (text) return text;
+	}
+	return undefined;
+}
+
 /** Extract `>`-quoted blocks from assistant markdown, in document order. */
 export function extractQuoteBlocks(text: string): QuoteBlock[] {
 	return extractBlocks(text)

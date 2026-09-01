@@ -101,11 +101,32 @@ describe("/copy slash command", () => {
 		expect(harness.showStatus).toHaveBeenCalledWith("No link to copy.");
 	});
 
-	it("copies the transcript on bare /copy, without the dump header or the picker", async () => {
+	it("copies the whole last answer on bare /copy, and nothing else", async () => {
+		const copySpy = spyOn(clipboard, "copyToClipboard").mockResolvedValue(undefined);
+		const harness = createRuntimeHarness([
+			userText("question"),
+			assistantText("older answer"),
+			userText("second question"),
+			assistantText("final answer\n\n```ts\nconst x = 1;\n```\n\ntrailing prose"),
+		]);
+
+		expect(await executeBuiltinSlashCommand("/copy", harness.runtime)).toBe(true);
+
+		const copied = copySpy.mock.calls[0]?.[0] ?? "";
+		// The entire last message, code block and trailing prose included.
+		expect(copied).toBe("final answer\n\n```ts\nconst x = 1;\n```\n\ntrailing prose");
+		expect(copied).not.toContain("older answer");
+		expect(copied).not.toContain("second question");
+		expect(harness.showStatus).toHaveBeenCalledWith("Copied the last answer to clipboard");
+		expect(harness.showCopySelector).not.toHaveBeenCalled();
+		expect(harness.setText).toHaveBeenCalledWith("");
+	});
+
+	it("copies the transcript on /copy all, without the dump header", async () => {
 		const copySpy = spyOn(clipboard, "copyToClipboard").mockResolvedValue(undefined);
 		const harness = createRuntimeHarness([userText("question"), assistantText("answer")]);
 
-		expect(await executeBuiltinSlashCommand("/copy", harness.runtime)).toBe(true);
+		expect(await executeBuiltinSlashCommand("/copy all", harness.runtime)).toBe(true);
 
 		const copied = copySpy.mock.calls[0]?.[0] ?? "";
 		expect(copied).toContain("question");
@@ -115,19 +136,31 @@ describe("/copy slash command", () => {
 		expect(copied).not.toContain("## Configuration");
 		expect(copied).not.toContain("## Available Tools");
 		expect(harness.showStatus).toHaveBeenCalledWith("Copied the conversation to clipboard");
-		expect(harness.showCopySelector).not.toHaveBeenCalled();
 		expect(harness.setText).toHaveBeenCalledWith("");
 	});
 
-	it("reports an empty conversation instead of copying", async () => {
+	it("reports an empty session instead of copying", async () => {
 		const copySpy = spyOn(clipboard, "copyToClipboard").mockResolvedValue(undefined);
 		const harness = createRuntimeHarness([]);
 
 		expect(await executeBuiltinSlashCommand("/copy", harness.runtime)).toBe(true);
+		expect(harness.showStatus).toHaveBeenCalledWith("No answer to copy yet.");
+
+		expect(await executeBuiltinSlashCommand("/copy all", harness.runtime)).toBe(true);
+		expect(harness.showStatus).toHaveBeenCalledWith("No messages to copy yet.");
 
 		expect(copySpy).not.toHaveBeenCalled();
-		expect(harness.showStatus).toHaveBeenCalledWith("No messages to copy yet.");
 		expect(harness.setText).toHaveBeenCalledWith("");
+	});
+
+	it("copies nothing on bare /copy when only the user has spoken", async () => {
+		const copySpy = spyOn(clipboard, "copyToClipboard").mockResolvedValue(undefined);
+		const harness = createRuntimeHarness([userText("question")]);
+
+		expect(await executeBuiltinSlashCommand("/copy", harness.runtime)).toBe(true);
+
+		expect(copySpy).not.toHaveBeenCalled();
+		expect(harness.showStatus).toHaveBeenCalledWith("No answer to copy yet.");
 	});
 
 	it("still reaches the picker through /copy pick", async () => {
