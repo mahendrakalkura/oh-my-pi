@@ -247,3 +247,14 @@ export function formatSessionDumpText(options: FormatSessionDumpTextOptions): st
 	appendMarkdownTranscript(lines, options.messages);
 	return lines.join("\n").trim();
 }
+
+/**
+ * Format only the conversation, with none of the dump header: no system prompt,
+ * no model line, no tool inventory. This is what `/copy` puts on the clipboard,
+ * where the header would bury the exchange the operator wants to paste.
+ */
+export function formatTranscriptText(messages: readonly AgentMessage[]): string {
+	const lines: string[] = [];
+	appendMarkdownTranscript(lines, messages);
+	return lines.join("\n").trim();
+}

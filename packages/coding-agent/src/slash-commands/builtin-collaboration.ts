@@ -9,6 +9,7 @@ import { shareSession } from "../export/share";
 import { theme } from "../modes/theme/theme";
 import type { InteractiveModeContext } from "../modes/types";
 import { extractLastCodeBlock, extractLastCommand, extractLastLink } from "../modes/utils/copy-targets";
+import { formatTranscriptText } from "../session/session-dump-format";
 import { restartBrowserForModeChange } from "../tools/browser";
 import { openPath } from "../utils/open";
 import { copyToClipboard } from "../utils/clipboard";
@@ -495,10 +496,11 @@ export const BUILTIN_COLLABORATION_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpe
 		allowArgs: true,
 		handleTui: async (command, runtime) => {
 			const arg = command.args.trim().toLowerCase();
-			// Bare /copy takes the whole transcript with no picker. Unlike /dump it
-			// writes no LLM-request sidecar, so copying never leaves a file on disk.
+			// Bare /copy takes the conversation with no picker. It deliberately skips
+			// formatSessionAsText: that is /dump's payload, which leads with the system
+			// prompt and the tool inventory and buries the exchange being copied.
 			if (!arg) {
-				const text = runtime.ctx.session.formatSessionAsText();
+				const text = formatTranscriptText(runtime.ctx.session.messages);
 				if (!text) {
 					runtime.ctx.showStatus("No messages to copy yet.");
 					runtime.ctx.editor.setText("");
