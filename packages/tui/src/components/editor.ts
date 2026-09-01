@@ -418,7 +418,7 @@ interface HistoryEntry {
 
 interface HistoryStorage {
 	add(prompt: string, cwd?: string): Promise<void>;
-	getRecent(limit: number): HistoryEntry[];
+	getScoped(limit: number, cwd?: string): HistoryEntry[];
 }
 
 /** A synchronous replacement immediately before the editor cursor. */
@@ -760,10 +760,14 @@ export class Editor implements Component, Focusable {
 		}
 	}
 
-	/** Loads persistent prompts for navigation and enables future persistence. */
+	/**
+	 * Loads the prompts recallable with the arrow keys and enables persistence.
+	 * The list is scoped by the storage to the active session, falling back to
+	 * this project, so recall never offers prompts from unrelated work.
+	 */
 	setHistoryStorage(storage: HistoryStorage): void {
 		this.#historyStorage = storage;
-		const recent = storage.getRecent(100);
+		const recent = storage.getScoped(100, getProjectDir());
 		this.#history = recent.map(entry => entry.prompt);
 		this.#historyIndex = -1;
 	}

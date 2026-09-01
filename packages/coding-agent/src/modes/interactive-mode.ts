@@ -967,8 +967,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		process.stdout.on("resize", this.#resizeHandler);
 		try {
 			this.historyStorage = HistoryStorage.open();
-			this.editor.setHistoryStorage(this.historyStorage);
+			// The resolver must exist first: setHistoryStorage scopes its initial load to
+			// the active session, and an unresolved session silently falls back to the cwd.
 			this.historyStorage.setSessionResolver(() => this.sessionManager.getSessionId());
+			this.editor.setHistoryStorage(this.historyStorage);
 		} catch (error) {
 			logger.warn("History storage unavailable", { error: String(error) });
 		}

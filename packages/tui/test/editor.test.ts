@@ -243,7 +243,7 @@ describe("Editor component", () => {
 					persisted.push(prompt);
 					return Promise.resolve();
 				},
-				getRecent: () => [{ prompt: "same" }],
+				getScoped: () => [{ prompt: "same" }],
 			});
 
 			editor.addToHistory("same");

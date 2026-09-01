@@ -71,6 +71,8 @@ export class HistoryStorage {
 	// Prepared statements
 	#upsertRowStmt: Statement;
 	#recentStmt: Statement;
+	#recentBySessionStmt: Statement;
+	#recentByCwdStmt: Statement;
 	#searchStmt: Statement;
 	// Cache substring-fallback prepared statements keyed by token count.
 	#substringStmts = new Map<number, Statement>();
@@ -111,6 +113,12 @@ END;
 		}
 		this.#recentStmt = this.#db.prepare(
 			"SELECT id, prompt, created_at, cwd, session_id FROM history ORDER BY created_at DESC, id DESC LIMIT ?",
+		);
+		this.#recentBySessionStmt = this.#db.prepare(
+			"SELECT id, prompt, created_at, cwd, session_id FROM history WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+		);
+		this.#recentByCwdStmt = this.#db.prepare(
+			"SELECT id, prompt, created_at, cwd, session_id FROM history WHERE cwd = ? ORDER BY created_at DESC, id DESC LIMIT ?",
 		);
 		this.#searchStmt = this.#db.prepare(
 			"SELECT h.id, h.prompt, h.created_at, h.cwd, h.session_id FROM history_fts f JOIN history h ON h.id = f.rowid WHERE history_fts MATCH ? ORDER BY h.created_at DESC, h.id DESC LIMIT ?",
@@ -154,6 +162,8 @@ ON CONFLICT(prompt) DO UPDATE SET
 		this.#substringStmts.clear();
 		this.#upsertRowStmt.finalize();
 		this.#recentStmt.finalize();
+		this.#recentBySessionStmt.finalize();
+		this.#recentByCwdStmt.finalize();
 		this.#searchStmt.finalize();
 		this.#db.close();
 	}
@@ -203,6 +213,31 @@ ON CONFLICT(prompt) DO UPDATE SET
 			return rows.map(row => this.#toEntry(row));
 		} catch (error) {
 			logger.error("HistoryStorage getRecent failed", { error: String(error) });
+			return [];
+		}
+	}
+
+	/**
+	 * Returns the prompts recallable from the arrow keys: the ones submitted in
+	 * the active session, or, when that session has none yet, the ones submitted
+	 * in `cwd`. A prompt belongs to wherever it was last submitted, since the
+	 * table keys on the prompt text alone, so recall follows the same rule.
+	 */
+	getScoped(limit: number, cwd?: string): HistoryEntry[] {
+		const safeLimit = this.#normalizeLimit(limit);
+		if (safeLimit === 0) return [];
+
+		const session = this.#sessionResolver?.();
+		try {
+			if (session) {
+				const rows = this.#recentBySessionStmt.all(session, safeLimit) as HistoryRow[];
+				if (rows.length > 0) return rows.map(row => this.#toEntry(row));
+			}
+			if (!cwd) return [];
+			const rows = this.#recentByCwdStmt.all(cwd, safeLimit) as HistoryRow[];
+			return rows.map(row => this.#toEntry(row));
+		} catch (error) {
+			logger.error("HistoryStorage getScoped failed", { error: String(error) });
 			return [];
 		}
 	}
