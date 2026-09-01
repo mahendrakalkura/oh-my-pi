@@ -2,7 +2,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import { SPINNER_ADVANCE_MS, TERMINAL } from "@oh-my-pi/pi-tui";
-import { formatDuration, formatNumber, getProjectDir, pathIsWithin, relativePathWithinRoot } from "@oh-my-pi/pi-utils";
+import {
+	formatDuration,
+	formatNumber,
+	getActiveProfile,
+	getProjectDir,
+	pathIsWithin,
+	relativePathWithinRoot,
+} from "@oh-my-pi/pi-utils";
 import { type Theme, type ThemeColor, theme } from "../../../modes/theme/theme";
 import { shortenPath, TRUNCATE_LENGTHS, truncateToWidth } from "../../../tools/render-utils";
 import { fileHyperlink } from "../../../tui/hyperlink";
@@ -703,6 +710,19 @@ const hostnameSegment: StatusLineSegment = {
 	},
 };
 
+/** Names the `--profile` / `OMP_PROFILE` config root in use; hidden on the default one. */
+const profileSegment: StatusLineSegment = {
+	id: "profile",
+	render() {
+		const profile = getActiveProfile();
+		if (!profile) return { content: "", visible: false };
+
+		// icon.package, not icon.subscription: the cost segment already renders the
+		// subscription glyph, and two identical glyphs in one bar read as one segment.
+		return { content: withIcon(theme.icon.package, profile), visible: true };
+	},
+};
+
 const cacheReadSegment: StatusLineSegment = {
 	id: "cache_read",
 	render(ctx) {
@@ -886,6 +906,7 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	time: timeSegment,
 	session: sessionSegment,
 	hostname: hostnameSegment,
+	profile: profileSegment,
 	cache_read: cacheReadSegment,
 	cache_write: cacheWriteSegment,
 	cache_hit: cacheHitSegment,
