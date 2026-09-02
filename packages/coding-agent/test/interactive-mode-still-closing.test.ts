@@ -56,7 +56,7 @@ describe("InteractiveMode long shutdown status", () => {
 		resetSettingsForTest();
 	});
 
-	it("refreshes the existing status while teardown remains pending", async () => {
+	it("shows the still-closing status only while teardown remains pending", async () => {
 		vi.useFakeTimers();
 		const statuses: string[] = [];
 		vi.spyOn(mode, "showStatus").mockImplementation(message => {
@@ -67,19 +67,19 @@ describe("InteractiveMode long shutdown status", () => {
 
 		const shutdown = mode.shutdown();
 		await flushMicrotasks();
-		expect(statuses).toEqual(["Closing session…"]);
+		expect(statuses).toEqual([]);
 
 		vi.advanceTimersByTime(2_999);
 		await flushMicrotasks();
-		expect(statuses).toEqual(["Closing session…"]);
+		expect(statuses).toEqual([]);
 		vi.advanceTimersByTime(1);
 		await flushMicrotasks();
-		expect(statuses).toEqual(["Closing session…", "Still closing… (flushing memory backend / network)"]);
+		expect(statuses).toEqual(["Still closing… (flushing memory backend / network)"]);
 
 		teardown.resolve();
 		await shutdown;
 		vi.advanceTimersByTime(10_000);
 		await flushMicrotasks();
-		expect(statuses).toHaveLength(2);
+		expect(statuses).toHaveLength(1);
 	});
 });
