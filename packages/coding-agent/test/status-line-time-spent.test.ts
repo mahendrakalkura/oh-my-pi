@@ -119,21 +119,22 @@ describe("time_spent segment", () => {
 	it("renders active processing time and ignores wall-clock", () => {
 		const rendered = renderSegment("time_spent", createCtx(10_000));
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("10");
-		expect(rendered.content).toContain("s");
+		expect(rendered.content).toContain("00:00");
 	});
 
-	it("hides under one second of activity so the segment does not flash 0s at session start", () => {
+	it("hides under one second of activity so the segment does not flash a clock at session start", () => {
 		expect(renderSegment("time_spent", createCtx(0)).visible).toBe(false);
 		expect(renderSegment("time_spent", createCtx(999)).visible).toBe(false);
 		expect(renderSegment("time_spent", createCtx(1000)).visible).toBe(true);
 	});
 
-	it("scales beyond seconds: formatDuration produces minute/hour suffixes", () => {
+	it("renders a zero-padded hh:mm clock with no seconds", () => {
 		const fiveMin = renderSegment("time_spent", createCtx(5 * 60_000));
-		expect(fiveMin.content).toContain("5m");
+		expect(fiveMin.content).toContain("00:05");
 		const twoHours = renderSegment("time_spent", createCtx(2 * 3_600_000));
-		expect(twoHours.content).toContain("2h");
+		expect(twoHours.content).toContain("02:00");
+		expect(fiveMin.content).not.toContain("s");
+		expect(twoHours.content).not.toContain("s");
 	});
 });
 

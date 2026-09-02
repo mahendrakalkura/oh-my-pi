@@ -85,6 +85,20 @@ The `time` segment printed a bare clock. `segmentOptions.time.showDate` turns it
 
 Changed: `StatusLineSegmentOptions.time` in `status-line/types.ts` and `timeSegment` in `status-line/segments.ts`.
 
+## feat(status-line): read both duration segments as a clock
+
+Commit `d85f9568fd`.
+
+`turn` and `time_spent` printed compound durations, `12s` then `1m30s` then `1h5m`. Both now render zero-padded `hh:mm` and never seconds. Two things drove it: the seconds field repainted the segment on every spinner tick, and the format's width changed as a turn crossed each unit boundary, shifting every segment beside it. A turn under a minute reads `00:00`, which is the cost of a fixed-width field.
+
+Changed:
+
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `formatTurnDuration` replaced by `formatClock`, used by both `turnSegment` and `timeSpentSegment`. The `formatDuration` import from `@oh-my-pi/pi-utils` went with it, since `time_spent` was its only caller here.
+- `packages/coding-agent/test/status-line-turn.test.ts`: the four format cases now assert `00:00`, `00:01` and `01:05`, plus a case asserting no `s` appears in either face.
+- `packages/coding-agent/test/status-line-time-spent.test.ts`: the same, asserting `00:05` and `02:00`.
+
+The hour field grows past `99` rather than wrapping, and `time_spent` still hides below one second of activity so the bar does not carry a clock before any work has happened.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.

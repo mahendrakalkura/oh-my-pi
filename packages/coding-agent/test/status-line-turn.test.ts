@@ -108,27 +108,32 @@ function makeSession(): ConstructorParameters<typeof StatusLineComponent>[0] {
 }
 
 describe("turn segment", () => {
-	it("renders whole seconds of the running turn", () => {
+	it("renders the running turn as a zero-padded clock", () => {
 		const rendered = renderSegment("turn", createCtx(12_400, null));
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("12s");
+		expect(rendered.content).toContain("00:00");
 	});
 
 	it("prefers the running turn over the previous one", () => {
 		const rendered = renderSegment("turn", createCtx(5_000, 90_000));
-		expect(rendered.content).toContain("5s");
-		expect(rendered.content).not.toContain("1m30s");
+		expect(rendered.content).toContain("00:00");
+		expect(rendered.content).not.toContain("00:01");
 	});
 
 	it("renders the previous turn while idle", () => {
 		const rendered = renderSegment("turn", createCtx(null, 90_000));
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("1m30s");
+		expect(rendered.content).toContain("00:01");
 	});
 
-	it("compresses long turns to hours and minutes", () => {
+	it("carries hours in the leading field", () => {
 		const rendered = renderSegment("turn", createCtx(null, 3_900_000));
-		expect(rendered.content).toContain("1h5m");
+		expect(rendered.content).toContain("01:05");
+	});
+
+	it("never renders seconds", () => {
+		expect(renderSegment("turn", createCtx(59_000, null)).content).not.toContain("s");
+		expect(renderSegment("turn", createCtx(null, 12_400)).content).not.toContain("s");
 	});
 
 	it("hides itself before the first turn closes", () => {

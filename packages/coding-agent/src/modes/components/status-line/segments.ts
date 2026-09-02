@@ -3,7 +3,6 @@ import * as path from "node:path";
 import { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import { SPINNER_ADVANCE_MS, TERMINAL } from "@oh-my-pi/pi-tui";
 import {
-	formatDuration,
 	formatNumber,
 	getActiveProfile,
 	getProjectDir,
@@ -648,42 +647,46 @@ const contextTotalSegment: StatusLineSegment = {
  * sourced from {@link SegmentContext.activeMs}. Idle wall-clock between turns
  * never accumulates, so the displayed total reflects how long the agent has
  * been working for the user, not how long the session has been open. Hidden
- * before the first second of activity to avoid flashing `0s` at session start.
+ * before the first second of activity to avoid flashing a clock at session
+ * start.
  */
 const timeSpentSegment: StatusLineSegment = {
 	id: "time_spent",
 	render(ctx) {
 		if (ctx.activeMs < 1000) return { content: "", visible: false };
-		return { content: withIcon(theme.icon.time, statusValue(ctx, formatDuration(ctx.activeMs))), visible: true };
+		return { content: withIcon(theme.icon.time, statusValue(ctx, formatClock(ctx.activeMs))), visible: true };
 	},
 };
 
 /**
  * Turn stopwatch: the running turn's elapsed time while the agent works, then
- * the duration that turn took once it yields. Whole seconds rather than
- * `formatDuration`'s tenths, which would churn on every spinner repaint.
+ * the duration that turn took once it yields.
  */
 const turnSegment: StatusLineSegment = {
 	id: "turn",
 	render(ctx) {
 		if (ctx.turnElapsedMs != null) {
-			return { content: withIcon(theme.icon.time, formatTurnDuration(ctx.turnElapsedMs)), visible: true };
+			return { content: withIcon(theme.icon.time, formatClock(ctx.turnElapsedMs)), visible: true };
 		}
 		if (ctx.lastTurnMs == null) return { content: "", visible: false };
 
 		// A different icon for the settled value: the number alone cannot say
 		// whether it is still counting, and the brand spinner is a segment away.
-		return { content: withIcon(theme.icon.rewind, formatTurnDuration(ctx.lastTurnMs)), visible: true };
+		return { content: withIcon(theme.icon.rewind, formatClock(ctx.lastTurnMs)), visible: true };
 	},
 };
 
-function formatTurnDuration(ms: number): string {
-	const seconds = Math.floor(ms / 1000);
-	if (seconds < 60) return `${seconds}s`;
-	const minutes = Math.floor(seconds / 60);
-	if (minutes < 60) return seconds % 60 > 0 ? `${minutes}m${seconds % 60}s` : `${minutes}m`;
+/**
+ * Both duration segments read as a clock: zero-padded `hh:mm`, never seconds.
+ * Seconds churned the field on every spinner repaint and changed its width as
+ * a turn crossed each unit boundary, which shifted every segment beside it.
+ * The floor is `00:00` for the first minute; the hour field grows past 99h
+ * rather than wrapping.
+ */
+function formatClock(ms: number): string {
+	const minutes = Math.floor(ms / 60_000);
 	const hours = Math.floor(minutes / 60);
-	return minutes % 60 > 0 ? `${hours}h${minutes % 60}m` : `${hours}h`;
+	return `${String(hours).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 const timeSegment: StatusLineSegment = {
