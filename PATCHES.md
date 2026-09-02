@@ -87,7 +87,7 @@ Changed: `StatusLineSegmentOptions.time` in `status-line/types.ts` and `timeSegm
 
 ## feat(status-line): read both duration segments as a clock
 
-Commit `d85f9568fd`.
+Commit `afb29c2f56`.
 
 `turn` and `time_spent` printed compound durations, `12s` then `1m30s` then `1h5m`. Both now render zero-padded `hh:mm` and never seconds. Two things drove it: the seconds field repainted the segment on every spinner tick, and the format's width changed as a turn crossed each unit boundary, shifting every segment beside it. A turn under a minute reads `00:00`, which is the cost of a fixed-width field.
 
