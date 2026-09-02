@@ -99,6 +99,19 @@ Changed:
 
 The hour field grows past `99` rather than wrapping, and `time_spent` still hides below one second of activity so the bar does not carry a clock before any work has happened.
 
+## feat(shutdown): drop the exit chatter
+
+Commit `e5579b19bb`.
+
+Every exit printed two lines nobody reads. `#teardown` set a `Closing session…` status that flashes for the few milliseconds `session.dispose()` actually takes, and `shutdown` wrote a dim `Resume this session with omp --resume <id>` hint that repeats what `/resume` and the recent-sessions list already offer.
+
+Changed:
+
+- `packages/coding-agent/src/modes/interactive-mode.ts`: the `showStatus("Closing session…")` call and the `resumeCommand` stderr write are gone, along with the now-unused `resumeCommand` import. `#resumableSessionId()` stays because `restart()` still needs it to rebuild the relaunch argv.
+- `packages/coding-agent/test/interactive-mode-still-closing.test.ts`: the case now asserts no status before the 3s threshold and only `Still closing… (flushing memory backend / network)` after it.
+
+The `Still closing…` status stays. It fires only after `STILL_CLOSING_DELAY_MS`, so it never appears on a normal quit and is the only signal that a stalled memory flush is the reason the terminal has not come back.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
