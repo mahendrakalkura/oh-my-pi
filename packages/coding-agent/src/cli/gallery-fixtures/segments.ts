@@ -102,6 +102,11 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 				{ label: "last turn", context: { turnElapsedMs: null } },
 				{ label: "before the first turn", context: { turnElapsedMs: null, lastTurnMs: null } },
 			];
+		case "turn_ended":
+			return [
+				{ label: "last turn ended", context: { lastTurnEndedAt: new Date(2026, 8, 4, 9, 7, 5).getTime() } },
+				{ label: "before the first turn", context: { lastTurnEndedAt: null } },
+			];
 		case "model":
 			return [
 				{ label: "normal" },

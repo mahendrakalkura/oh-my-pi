@@ -677,6 +677,31 @@ const turnSegment: StatusLineSegment = {
 };
 
 /**
+ * Wall-clock stamp of the moment the last turn ended, `yyyy-mm-dd hh:mm:ss`,
+ * hidden until the first turn closes. Unlike `time` this never re-reads the
+ * clock: the value is a record of a past instant, so a repaint from any other
+ * source (keystroke, git resolve, usage refresh) cannot overwrite it.
+ */
+const turnEndedSegment: StatusLineSegment = {
+	id: "turn_ended",
+	render(ctx) {
+		if (ctx.lastTurnEndedAt == null) return { content: "", visible: false };
+
+		const endedAt = new Date(ctx.lastTurnEndedAt);
+		const date = [
+			endedAt.getFullYear(),
+			String(endedAt.getMonth() + 1).padStart(2, "0"),
+			String(endedAt.getDate()).padStart(2, "0"),
+		].join("-");
+		const clock = [endedAt.getHours(), endedAt.getMinutes(), endedAt.getSeconds()]
+			.map(part => String(part).padStart(2, "0"))
+			.join(":");
+
+		return { content: withIcon(theme.icon.time, statusValue(ctx, `${date} ${clock}`)), visible: true };
+	},
+};
+
+/**
  * Both duration segments read as a clock: zero-padded `hh:mm`, never seconds.
  * Seconds churned the field on every spinner repaint and changed its width as
  * a turn crossed each unit boundary, which shifted every segment beside it.
@@ -935,6 +960,7 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	context_total: contextTotalSegment,
 	time_spent: timeSpentSegment,
 	turn: turnSegment,
+	turn_ended: turnEndedSegment,
 	time: timeSegment,
 	session: sessionSegment,
 	hostname: hostnameSegment,

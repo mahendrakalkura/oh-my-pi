@@ -254,6 +254,7 @@ export type StatusLineSegmentId =
 	| "context_total"
 	| "time_spent"
 	| "turn"
+	| "turn_ended"
 	| "time"
 	| "session"
 	| "hostname"

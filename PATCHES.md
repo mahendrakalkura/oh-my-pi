@@ -99,6 +99,21 @@ Changed:
 
 The hour field grows past `99` rather than wrapping, and `time_spent` still hides below one second of activity so the bar does not carry a clock before any work has happened.
 
+## feat(status-line): stamp the moment the last turn ended
+
+The `time` segment reads the clock on every render, and nothing drives a wall-clock repaint: repaints come from the working loader, the brand fade, the compaction blink, async git/PR/usage resolves and keystrokes. So `time` neither ticked while idle nor recorded anything - it froze wherever the last repaint happened to land, and any later keystroke overwrote that value with the current time. Recording when the agent last yielded needs the instant captured at turn close, not sampled at paint time.
+
+Changed:
+
+- `packages/coding-agent/src/modes/components/status-line/component.ts`: `ActiveMeter.lastTurnEndedAt` holds the wall-clock ms of the last closed window. `markActivityEnd` stamps it from the same `Date.now()` reading it uses for the duration, `resetActiveTime` clears it, and `getLastTurnEndedAt()` joins the sibling accessors feeding the segment context.
+- `packages/coding-agent/src/modes/components/status-line/types.ts`: `SegmentContext.lastTurnEndedAt`, optional like `lastTurnMs`.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `turnEndedSegment` renders `yyyy-mm-dd hh:mm:ss` and hides itself before the first turn closes. The stamp is fixed rather than configurable: `segmentOptions.time` exists for a live clock, and this segment is a record of a past instant.
+- `packages/coding-agent/src/config/settings-schema.ts`: `turn_ended` added to the `StatusLineSegmentId` union.
+- `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: gallery variants for a recorded end and for the pre-first-turn state.
+- `packages/coding-agent/test/status-line-turn.test.ts`: a `turn_ended` block covering the stamp, the hold across a running turn, the hidden state before the first turn, and the meter's stamp-and-reset behavior including an unmatched `markActivityEnd`.
+
+The segment keeps the previous end visible while the next turn runs, since the bar already signals a running turn through the brand spinner and the `turn` clock. The dotfiles `config.yml` swaps `time` for `turn_ended` and drops the now-unused `segmentOptions.time`.
+
 ## feat(shutdown): drop the exit chatter
 
 Commit `e5579b19bb`.
@@ -118,7 +133,7 @@ These behaviors were requested alongside the patches and turned out to need no c
 
 `startup.quiet: true` removes the welcome panel, the logo, the Tips column, the LSP list, the recent-sessions column, the "Tip:" line under the box and the "Connected to MCP servers" notice, including the mid-session reprint from the `/mcp` dashboard. One key covers all of it; there is no finer granularity, and it also silences LSP startup notices, the model-scope banner and xdev mount notices. The panel can still flash once per directory because `cli.ts` prepaints from a per-cwd cache of the previous run's preferences before settings load.
 
-`statusLine.leftSegments` reads `pi, profile, model, path, turn, time_spent, context_pct, time, cost, usage`, which enables the segments added above and places the profile ahead of the model. `segmentOptions.time` sets `format: 24h`, `showDate: true` and `showSeconds: true`.
+`statusLine.leftSegments` reads `pi, profile, model, path, turn, time_spent, context_pct, turn_ended, cost, usage`, which enables the segments added above and places the profile ahead of the model. The live-clock `time` segment is not listed, so `segmentOptions.time` carries no keys.
 
 `display.showTokenUsage: false` hides the per-turn usage row under each answer. Every profile's own config turns it on; the shared overlay outranks them, so one key switches it off everywhere.
 

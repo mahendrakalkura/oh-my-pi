@@ -28,7 +28,11 @@ afterAll(() => {
 	resetSettingsForTest();
 });
 
-function createCtx(turnElapsedMs: number | null, lastTurnMs: number | null): SegmentContext {
+function createCtx(
+	turnElapsedMs: number | null,
+	lastTurnMs: number | null,
+	lastTurnEndedAt: number | null = null,
+): SegmentContext {
 	return {
 		// The segment under test never touches `session`; stub it.
 		session: {} as unknown as SegmentContext["session"],
@@ -64,6 +68,7 @@ function createCtx(turnElapsedMs: number | null, lastTurnMs: number | null): Seg
 		activeMs: 0,
 		turnElapsedMs,
 		lastTurnMs,
+		lastTurnEndedAt,
 		activeRepo: null,
 		worktree: null,
 		git: { branch: null, status: null, pr: null },
@@ -156,5 +161,43 @@ describe("turn segment", () => {
 
 		component.resetActiveTime();
 		expect(component.getLastTurnMs()).toBeNull();
+	});
+});
+
+describe("turn_ended segment", () => {
+	const endedAt = new Date(2026, 8, 4, 9, 7, 5).getTime();
+
+	it("stamps the moment the last turn ended", () => {
+		const rendered = renderSegment("turn_ended", createCtx(null, 92_000, endedAt));
+		expect(rendered.visible).toBe(true);
+		expect(rendered.content).toContain("2026-09-04 09:07:05");
+	});
+
+	it("holds the previous end while a new turn runs", () => {
+		const rendered = renderSegment("turn_ended", createCtx(4_000, 92_000, endedAt));
+		expect(rendered.content).toContain("2026-09-04 09:07:05");
+	});
+
+	it("hides itself before the first turn closes", () => {
+		expect(renderSegment("turn_ended", createCtx(null, null))).toEqual({ content: "", visible: false });
+	});
+
+	it("records the wall-clock end of each closed turn and drops it on reset", () => {
+		const component = new StatusLineComponent(makeSession());
+		expect(component.getLastTurnEndedAt()).toBeNull();
+
+		const before = Date.now();
+		component.markActivityStart();
+		component.markActivityEnd();
+		const firstEnd = component.getLastTurnEndedAt();
+		expect(firstEnd).toBeGreaterThanOrEqual(before);
+		expect(firstEnd).toBeLessThanOrEqual(Date.now());
+
+		// An unmatched end must not restamp: there is no window to close.
+		component.markActivityEnd();
+		expect(component.getLastTurnEndedAt()).toBe(firstEnd);
+
+		component.resetActiveTime();
+		expect(component.getLastTurnEndedAt()).toBeNull();
 	});
 });

@@ -299,6 +299,8 @@ interface ActiveMeter {
 	activeStartedAt: number | null;
 	/** Duration of the last closed `agent_start`→`agent_end` window, or null before the first. */
 	lastTurnMs: number | null;
+	/** Wall-clock ms at which that window closed, or null before the first turn ends. */
+	lastTurnEndedAt: number | null;
 	sessionFile: string | undefined;
 }
 
@@ -634,6 +636,7 @@ export class StatusLineComponent implements Component {
 		const meter = this.#meter();
 		meter.activeMs = 0;
 		meter.activeStartedAt = null;
+		meter.lastTurnEndedAt = null;
 		meter.lastTurnMs = null;
 	}
 
@@ -659,8 +662,10 @@ export class StatusLineComponent implements Component {
 	markActivityEnd(): void {
 		const meter = this.#meter();
 		if (meter.activeStartedAt === null) return;
-		const turnMs = Math.max(0, Date.now() - meter.activeStartedAt);
+		const endedAt = Date.now();
+		const turnMs = Math.max(0, endedAt - meter.activeStartedAt);
 		meter.activeMs += turnMs;
+		meter.lastTurnEndedAt = endedAt;
 		meter.lastTurnMs = turnMs;
 		meter.activeStartedAt = null;
 	}
@@ -693,6 +698,16 @@ export class StatusLineComponent implements Component {
 	}
 
 	/**
+	 * Wall-clock time the last turn ended, or null before the first one closes.
+	 * Feeds the `turn_ended` segment, which is a record of a past instant and
+	 * so never changes between turns — unlike `time`, which re-reads the clock
+	 * on every repaint.
+	 */
+	getLastTurnEndedAt(): number | null {
+		return this.#meter().lastTurnEndedAt;
+	}
+
+	/**
 	 * Return (lazily creating) the meter for the currently-attached
 	 * session. Detects an in-place session-file swap under the same
 	 * {@link AgentSession} ref (`switchSession` paths: `/resume`, `/move`,
@@ -715,7 +730,13 @@ export class StatusLineComponent implements Component {
 			}
 		}
 		if (!meter) {
-			meter = { activeMs: 0, activeStartedAt: null, lastTurnMs: null, sessionFile: currentFile };
+			meter = {
+				activeMs: 0,
+				activeStartedAt: null,
+				lastTurnEndedAt: null,
+				lastTurnMs: null,
+				sessionFile: currentFile,
+			};
 			this.#activeMeters.set(this.session, meter);
 		}
 		return meter;
@@ -1890,6 +1911,7 @@ export class StatusLineComponent implements Component {
 			activeMs: this.getActiveMs(),
 			turnElapsedMs,
 			lastTurnMs: this.getLastTurnMs(),
+			lastTurnEndedAt: this.getLastTurnEndedAt(),
 			brandFgAnsi: this.#brandFgAnsi(turnElapsedMs !== null, sessionAccentEnabled),
 			git: {
 				branch: gitBranch,

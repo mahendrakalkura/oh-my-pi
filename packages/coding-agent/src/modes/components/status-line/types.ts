@@ -143,6 +143,13 @@ export interface SegmentContext {
 	 */
 	lastTurnMs?: number | null;
 	/**
+	 * Wall-clock ms at which the last turn ended; null before the first one
+	 * closes. The `turn_ended` segment renders it as a fixed stamp, so the bar
+	 * keeps reporting when the agent last yielded however long it stays idle.
+	 * Optional for the same reason as {@link lastTurnMs}.
+	 */
+	lastTurnEndedAt?: number | null;
+	/**
 	 * Sampled foreground ANSI for the `pi` brand segment — tweened between dim
 	 * gray (idle) and the accent (working) across turn edges (rust omp's
 	 * status-band brand fade). Absent in direct-segment fixtures and previews,
