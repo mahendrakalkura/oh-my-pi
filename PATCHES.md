@@ -140,6 +140,22 @@ Changed:
 
 Verified with a throwaway `VirtualTerminal` end-to-end harness, since the row shift is only observable in the terminal buffer: before the fix the scroll buffer moved the status box from rows 6-7 to rows 7-8 across `mode.stop()`, and after it the before and after buffers are identical. The composer and end-to-end suites fail the same eight pre-existing cases with and without the change.
 
+## test(settings): keep the ambient config overlay out of tests
+
+Commit `7e20058b53`.
+
+A session launched by `omp` exports `PI_CONFIG_FILES` pointing at the dotfiles overlay, and the `Settings` constructor reads that variable at `packages/coding-agent/src/config/settings.ts:541`, before any `inMemory` or `readOnly` branch. Every test that initializes settings therefore inherited the developer's own preferences. The overlay's `startup.quiet: true` suppresses the welcome panel, and the panel's border title is where the version string lives, so each test that counts welcome rows read zero: eight failures across `test/startup-composer.test.ts`, `test/issue-9597-cold-launch-double-clear.test.ts` and `test/interactive-terminal-e2e.test.ts`. The failure imitates upstream breakage, because an `origin/main` worktree inherits the same exported environment and fails identically.
+
+Changed:
+
+- `scripts/test-preload.ts`: new, deletes `process.env.PI_CONFIG_FILES`.
+- `bunfig.toml`: `[test] preload` runs it.
+- `packages/coding-agent/bunfig.toml`: new, restates the same `preload`. Bun reads `bunfig.toml` from the current directory only and never from a parent, so `bun test` run inside the package would otherwise miss the root setting.
+
+`inMemory` is the wrong gate for this: it only nulls `#configPath` and clears `#persist`, the env layer is read regardless, and `Settings.isolated()` passes `inMemory: true` on a production path. Gating on `isBunTestRuntime()` is wrong too, because `scripts/ci-test-ts.ts` sets `PI_TEST_RUNTIME=1` and child processes inherit it, which would make the spawned CLI in `test/config-cli.test.ts:200` ignore the `PI_CONFIG_FILES` that case passes on purpose.
+
+Verified: the three affected files plus `test/config-cli.test.ts` and `test/modes/components/transcript-container.test.ts` give 59 pass, 0 fail from inside the package with the profile environment present. Before the preload the same set failed eight cases.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
@@ -155,8 +171,6 @@ These behaviors were requested alongside the patches and turned out to need no c
 Iterate without compiling: `bun dev -- --version`, `bun dev -- --help`, and so on run the CLI from source. Rust changes need `bun run build:native` first.
 
 Check before committing: `bun run check:ts`, plus `bun test` in the package touched.
-
-Run those tests with the profile environment stripped: `env -u PI_CONFIG_FILES -u PI_CODING_AGENT_DIR -u OMP_PROFILE -u PI_PROFILE bun test <file>`. A session launched by `omp` exports `PI_CONFIG_FILES` pointing at the dotfiles overlay, and `Settings.init({ inMemory: true })` still reads that layer - `inMemory` blocks writes, not ambient config. The overlay's `startup.quiet: true` suppresses the welcome panel, and the panel's border title is where the version string lives, so every test that counts welcome rows reads zero. That is eight failures across `test/startup-composer.test.ts`, `test/issue-9597-cold-launch-double-clear.test.ts` and `test/interactive-terminal-e2e.test.ts`, all of which pass in a clean environment. The failure looks like upstream breakage because it reproduces on an `origin/main` worktree, which inherits the same exported env.
 
 `omp-sync` pulls the fork and rebuilds the installed binary. `omp-sync --rebase` replays this series onto the latest `origin/main` first, with rerere replaying recorded conflict resolutions. `omp-sync --publish` overwrites the fork with the local series after an amend or a local rebase.
 
