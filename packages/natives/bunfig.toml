@@ -1,0 +1,5 @@
+[test]
+# Bun reads bunfig.toml from the current directory only, never from a parent, so
+# `bun test` run inside this package would miss the root `[test] preload`. This
+# file restates it for package-local runs. See scripts/test-preload.ts.
+preload = ["../../scripts/test-preload.ts"]

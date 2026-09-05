@@ -1574,12 +1574,11 @@ mod tests {
 
 	use super::*;
 
+	/// Both config scopes are pinned to `/dev/null` so the developer's own
+	/// settings (`diff.mnemonicPrefix` renames the `a/` and `b/` path prefixes,
+	/// for one) cannot change what these tests compare against.
 	fn git(cwd: &Path, args: &[&str]) -> String {
-		let output = Command::new("git")
-			.current_dir(cwd)
-			.args(args)
-			.output()
-			.expect("run git");
+		let output = stock_git(cwd, args).output().expect("run git");
 		assert!(
 			output.status.success(),
 			"git {} failed: {}",
@@ -1589,10 +1588,8 @@ mod tests {
 		String::from_utf8(output.stdout).expect("git output is UTF-8")
 	}
 	fn git_with_index(cwd: &Path, index: &Path, args: &[&str]) -> String {
-		let output = Command::new("git")
-			.current_dir(cwd)
+		let output = stock_git(cwd, args)
 			.env("GIT_INDEX_FILE", index)
-			.args(args)
 			.output()
 			.expect("run git with alternate index");
 		assert!(
@@ -1602,6 +1599,14 @@ mod tests {
 			String::from_utf8_lossy(&output.stderr)
 		);
 		String::from_utf8(output.stdout).expect("git output is UTF-8")
+	}
+	fn stock_git(cwd: &Path, args: &[&str]) -> Command {
+		let mut cmd = Command::new("git");
+		cmd.current_dir(cwd)
+			.args(args)
+			.env("GIT_CONFIG_GLOBAL", "/dev/null")
+			.env("GIT_CONFIG_SYSTEM", "/dev/null");
+		cmd
 	}
 
 	fn init(files: &[(&str, &[u8])]) -> TempDir {

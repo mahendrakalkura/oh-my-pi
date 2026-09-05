@@ -1264,19 +1264,19 @@ mod tests {
 
 	use super::*;
 
+	/// The reference git invocation these tests compare gix output against. Both
+	/// config scopes are pinned to `/dev/null` so the developer's own settings
+	/// (`diff.mnemonicPrefix` renames the `a/` and `b/` path prefixes, for one)
+	/// cannot change the expected output.
 	fn git(dir: &Path, args: &[&str]) -> String {
-		let output = Command::new("git")
-			.args(args)
-			.current_dir(dir)
+		let output = stock_git(dir, args)
 			.output()
 			.unwrap_or_else(|err| panic!("run git {args:?}: {err}"));
 		assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
 		String::from_utf8(output.stdout).expect("git output is UTF-8")
 	}
 	fn git_diff(dir: &Path, args: &[&str]) -> String {
-		let output = Command::new("git")
-			.args(args)
-			.current_dir(dir)
+		let output = stock_git(dir, args)
 			.output()
 			.unwrap_or_else(|err| panic!("run git {args:?}: {err}"));
 		assert_eq!(
@@ -1286,6 +1286,14 @@ mod tests {
 			String::from_utf8_lossy(&output.stderr)
 		);
 		String::from_utf8(output.stdout).expect("git output is UTF-8")
+	}
+	fn stock_git(dir: &Path, args: &[&str]) -> Command {
+		let mut cmd = Command::new("git");
+		cmd.args(args)
+			.current_dir(dir)
+			.env("GIT_CONFIG_GLOBAL", "/dev/null")
+			.env("GIT_CONFIG_SYSTEM", "/dev/null");
+		cmd
 	}
 
 	fn fixture() -> TempDir {

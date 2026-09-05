@@ -10,8 +10,13 @@ afterEach(async () => {
 	await Promise.all(roots.splice(0).map(root => rm(root, { force: true, recursive: true })));
 });
 
+// `env` is passed explicitly because `Bun.spawn` otherwise hands the child the
+// environment as it stood at process start, ignoring later mutations - which is
+// how scripts/test-preload.ts neutralizes the developer's git config. Without
+// it, a `diff.mnemonicPrefix` setting renames the `a/` and `b/` path prefixes
+// and the CLI patch stops matching the in-process one.
 async function git(cwd: string, ...args: string[]): Promise<string> {
-	const process = Bun.spawn(["git", ...args], { cwd, stderr: "pipe", stdout: "pipe" });
+	const process = Bun.spawn(["git", ...args], { cwd, env: { ...Bun.env }, stderr: "pipe", stdout: "pipe" });
 	const [stdout, stderr, exitCode] = await Promise.all([
 		new Response(process.stdout).text(),
 		new Response(process.stderr).text(),

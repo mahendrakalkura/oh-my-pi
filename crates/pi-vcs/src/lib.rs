@@ -302,10 +302,15 @@ mod tests {
 
 	use super::*;
 
+	/// Both config scopes are pinned to `/dev/null` so the developer's own
+	/// settings (`diff.mnemonicPrefix` renames the `a/` and `b/` path prefixes,
+	/// for one) cannot change what these tests compare against.
 	fn run_git(root: &Path, args: &[&str]) -> String {
 		let output = Command::new("git")
 			.current_dir(root)
 			.args(args)
+			.env("GIT_CONFIG_GLOBAL", "/dev/null")
+			.env("GIT_CONFIG_SYSTEM", "/dev/null")
 			.output()
 			.unwrap();
 		assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
