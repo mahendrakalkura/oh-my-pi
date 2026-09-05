@@ -324,8 +324,10 @@ describe("RPC fast mode with unsupported Fireworks model and priority tier", () 
 			cliPath: path.join(import.meta.dir, "..", "src", "cli.ts"),
 			cwd: path.join(import.meta.dir, ".."),
 			env: {
-				PI_CODING_AGENT_DIR: sessionDir,
 				FIREWORKS_API_KEY: "test-fireworks-key",
+				OMP_PROFILE: "",
+				PI_CODING_AGENT_DIR: sessionDir,
+				PI_PROFILE: "",
 			},
 			provider: "fireworks",
 			model: "deepseek-v4-flash",

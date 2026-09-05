@@ -544,8 +544,9 @@ exit 64
 			shell: fishPath,
 			args: ["-l", "-c"],
 			env: {
-				PATH: Bun.env.PATH ?? "",
 				HOME: shellDir,
+				PATH: Bun.env.PATH ?? "",
+				XDG_CONFIG_HOME: path.dirname(configDir),
 			},
 			prefix: undefined,
 		});

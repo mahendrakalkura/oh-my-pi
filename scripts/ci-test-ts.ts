@@ -378,17 +378,19 @@ async function commandsForMode(mode: Mode): Promise<TestCommand[]> {
 // suites in a hermetic environment with all credential / cloud-config variables
 // stripped so resolution depends only on the test's own fixtures.
 const SCRUBBED_ENV_PREFIXES = ["AWS_", "GOOGLE_CLOUD_"];
-const SCRUBBED_ENV_NAMES = new Set([
-	"GITHUB_TOKEN",
-	"GH_TOKEN",
-	"COPILOT_GITHUB_TOKEN",
-	"GOOGLE_APPLICATION_CREDENTIALS",
-	"ANTHROPIC_OAUTH_TOKEN",
-	"XAI_OAUTH_TOKEN",
-]);
+const SCRUBBED_ENV_NAMES: Record<string, true> = {
+	ANTHROPIC_OAUTH_TOKEN: true,
+	COPILOT_GITHUB_TOKEN: true,
+	GH_TOKEN: true,
+	GITHUB_TOKEN: true,
+	GOOGLE_APPLICATION_CREDENTIALS: true,
+	OMP_PROFILE: true,
+	PI_PROFILE: true,
+	XAI_OAUTH_TOKEN: true,
+};
 
 function isScrubbedEnvVar(key: string): boolean {
-	if (SCRUBBED_ENV_NAMES.has(key)) {
+	if (SCRUBBED_ENV_NAMES[key] === true) {
 		return true;
 	}
 	if (SCRUBBED_ENV_PREFIXES.some(prefix => key.startsWith(prefix))) {
@@ -463,10 +465,12 @@ async function runTestCommand(testCommand: TestCommand): Promise<void> {
 function buildChildEnv(): Record<string, string | undefined> {
 	const env: Record<string, string | undefined> = {
 		...Bun.env,
-		GITHUB_ACTIONS: "",
-		PI_TEST_RUNTIME: "1",
-		BUN_JSC_useConcurrentGC: "0",
 		BUN_JSC_numberOfGCMarkers: "1",
+		BUN_JSC_useConcurrentGC: "0",
+		GITHUB_ACTIONS: "",
+		GIT_CONFIG_GLOBAL: os.devNull,
+		GIT_CONFIG_NOSYSTEM: "1",
+		PI_TEST_RUNTIME: "1",
 	};
 	for (const key of Object.keys(env)) {
 		if (isScrubbedEnvVar(key)) {

@@ -154,8 +154,10 @@ describe("default bench runtime", () => {
 				env: {
 					...process.env,
 					NO_COLOR: "1",
+					OMP_PROFILE: "",
 					OPENCODE_API_KEY: apiKey,
 					PI_CODING_AGENT_DIR: tempDir.path(),
+					PI_PROFILE: "",
 				},
 				stdout: "pipe",
 				stderr: "pipe",

@@ -809,7 +809,6 @@ describe("agent() through eval runtimes", () => {
 		expect(running.currentTool).toBe("read");
 		expect(running.lastIntent).toBe("Reading config");
 		expect(running.toolCount).toBe(4);
-
 		expect(completed.status).toBe("completed");
 		expect(completed.toolCount).toBe(7);
 		expect(completed.cost).toBeCloseTo(0.06);

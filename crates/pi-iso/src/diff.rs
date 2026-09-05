@@ -184,7 +184,9 @@ async fn git_spawn(cwd: &Path, args: &[&str]) -> IsoResult<std::process::Output>
 	// wrong paths. `diff.mnemonicPrefix` alone turns them into `c/` and `w/`.
 	// Pin the prefixes for every invocation, next to the existing
 	// `core.quotepath=off` pin on the diff call itself.
-	for pin in ["diff.mnemonicPrefix=false", "diff.noprefix=false", "diff.srcPrefix=a/", "diff.dstPrefix=b/"] {
+	for pin in
+		["diff.mnemonicPrefix=false", "diff.noprefix=false", "diff.srcPrefix=a/", "diff.dstPrefix=b/"]
+	{
 		cmd.arg("-c").arg(pin);
 	}
 	cmd.arg("-C").arg(cwd).args(args);
