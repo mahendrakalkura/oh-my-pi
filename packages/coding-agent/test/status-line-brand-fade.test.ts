@@ -87,12 +87,13 @@ describe("status line brand fade", () => {
 			// Idle: omp icon settled in the dim color.
 			expect(component.renderBottomBar(80, "full")).toContain(`${dimAnsi}${theme.icon.omp} `);
 
-			// Turn start: the glyph becomes a spinner + whole-second timer at
-			// once, but the color starts from the on-screen dim — no instant swap.
+			// Turn start: the glyph becomes a spinner at once, but the color
+			// starts from the on-screen dim — no instant swap. The brand carries
+			// no timer; the `turn` segment owns the clock.
 			component.markActivityStart();
 			now += 10;
 			const early = component.renderBottomBar(80, "full");
-			expect(early).toContain(" 0s ");
+			expect(early).not.toMatch(/\d+s/u);
 			expect(early).not.toContain(theme.icon.omp);
 			expect(early).toContain(dimAnsi);
 			expect(early).not.toContain(accentAnsi);
