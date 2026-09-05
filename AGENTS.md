@@ -246,9 +246,20 @@ For the bash tool specifically:
 - `ToolExecutionComponent.#buildRenderContext()` for bash must work even before a result exists — the renderer uses call args plus render context to show the command preview while streaming.
 - Verify both live streaming and rebuilt transcript paths after any bash preview change. A fix in one path does not fix the other.
 
+## Custom Fork Patch Workflow
+
+Before every commit, MUST complete this housekeeping workflow. Commit and push every completed change; user need not request either action separately.
+
+1. Fetch `origin` and `fork`. Only `origin/main`, `fork/main`, and `fork/mahendra` are in scope; NEVER mirror, compare, delete, or synchronize upstream topic branches unless explicitly requested. Re-fetch immediately before committing.
+2. Make local `main` and `fork/main` exactly match `origin/main`.
+3. Rebase local `mahendra` onto current `origin/main` before patching. If the final fetch advances `origin/main`, rebase again before committing. Preserve every carried patch; NEVER merge upstream into `mahendra`.
+4. Implement the patch on `mahendra`, update affected tests and changelog, and add or refresh its entry in `PATCHES.md`.
+5. Run focused behavioral tests plus `bun check`. Run any broader package suite required by the affected area; NEVER commit with failures.
+6. Commit each concern separately on `mahendra`, push `fork/main` normally, and push rebased `mahendra` with `--force-with-lease`.
+7. Fetch again and verify `main == origin/main == fork/main`, local `mahendra == fork/mahendra`, and `mahendra` is based on current `origin/main`. The custom patch is incomplete until every invariant holds.
+
 ## Commands
 
-- NEVER commit unless asked.
 - Never use `tsc`/`npx tsc` — always `bun check`.
 - Never run `cargo test` directly for Rust tests — use `bun run test:rs`. It runs `cargo nextest run` (config: `.config/nextest.toml`) followed by a `cargo test --doc` pass, because nextest does not execute doctests. The doctest pass currently executes nothing (pi-natives is a `cdylib`, which rustdoc skips; pi-builtins' examples are `ignore`d vendored uutils docs) and exists so the first runnable doctest added to a lib crate is actually run.
 - Merge commits (maintainer merges of PRs) follow: `Merge PR #<number>: <conventional PR subject> (@<author>)` — e.g. `Merge PR #6386: feat(catalog): add native Meta Model API provider (@eggpeat)`.
