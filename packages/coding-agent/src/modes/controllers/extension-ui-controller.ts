@@ -240,6 +240,7 @@ export class ExtensionUiController {
 				if (options?.setup) {
 					await options.setup(this.ctx.sessionManager);
 				}
+				this.ctx.editor.reloadHistory();
 
 				// Reset and update status line
 				this.ctx.statusLine.invalidate();
@@ -261,6 +262,7 @@ export class ExtensionUiController {
 				if (result.cancelled) {
 					return { cancelled: true };
 				}
+				this.ctx.editor.reloadHistory();
 
 				// Update UI
 				await this.ctx.renderInitialMessages({ clearTerminalHistory: true });
@@ -293,6 +295,7 @@ export class ExtensionUiController {
 				if (!result) {
 					return { cancelled: true };
 				}
+				this.ctx.editor.reloadHistory();
 				setSessionTerminalTitle(this.ctx.sessionManager.getSessionName(), this.ctx.sessionManager.getCwd());
 				await this.ctx.renderInitialMessages({ clearTerminalHistory: true });
 				await this.ctx.reloadTodos();
@@ -472,6 +475,7 @@ export class ExtensionUiController {
 				if (options?.setup) {
 					await options.setup(this.ctx.sessionManager);
 				}
+				this.ctx.editor.reloadHistory();
 
 				// Clear UI state
 				this.ctx.clearTransientSessionUi();
@@ -491,6 +495,7 @@ export class ExtensionUiController {
 				if (result.cancelled) {
 					return { cancelled: true };
 				}
+				this.ctx.editor.reloadHistory();
 
 				// Update UI
 				await this.ctx.renderInitialMessages({ clearTerminalHistory: true });
@@ -523,6 +528,7 @@ export class ExtensionUiController {
 				if (!result) {
 					return { cancelled: true };
 				}
+				this.ctx.editor.reloadHistory();
 				await this.ctx.renderInitialMessages({ clearTerminalHistory: true });
 				await this.ctx.reloadTodos();
 				return { cancelled: false };

@@ -18,6 +18,9 @@
 
 - Avoid inserting a trailing space when auto-completing directory paths with `@`, and keep autocomplete open when accepting a directory with Tab or Enter.
 - Horizontal wheel reports (the sideways drift of a two-finger trackpad scroll) no longer decode as a vertical wheel direction, so fullscreen selectors such as `/copy` and the rewind picker stop jumping up and back down at the end of a scroll gesture.
+### Added
+
+- Added `Editor.reloadHistory()` for refreshing scoped prompt recall after a session or project change.
 
 ## [18.1.9] - 2026-09-04
 

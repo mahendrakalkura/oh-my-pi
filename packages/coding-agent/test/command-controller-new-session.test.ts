@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "bun:test";
+import { CustomEditor } from "@oh-my-pi/pi-coding-agent/modes/components/custom-editor";
 import { CommandController } from "@oh-my-pi/pi-coding-agent/modes/controllers/command-controller";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { getEditorTheme, initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 
 beforeAll(async () => {
@@ -10,6 +11,7 @@ beforeAll(async () => {
 interface NewSessionHarness {
 	ctx: InteractiveModeContext;
 	controller: CommandController;
+	editor: CustomEditor;
 	counts: {
 		newSession: () => number;
 		unfocusSession: () => number;
@@ -27,12 +29,19 @@ function makeHarness(): NewSessionHarness {
 	let resetTranscript = 0;
 	let presented = 0;
 	let focusedAgentId: string | undefined = "subagent-1";
+	let currentHistory = "previous session";
+	const editor = new CustomEditor(getEditorTheme());
+	editor.setHistoryStorage({
+		add: () => Promise.resolve(),
+		getScoped: () => [{ prompt: currentHistory }],
+	});
 
 	const ctx = {
 		session: {
 			isCompacting: false,
 			newSession: async () => {
 				newSession++;
+				currentHistory = "new session";
 				return true;
 			},
 		},
@@ -52,6 +61,7 @@ function makeHarness(): NewSessionHarness {
 				resetTranscriptAnchors++;
 			},
 		},
+		editor,
 		resetObserverRegistry: () => {},
 		statusLine: {
 			invalidate: () => {},
@@ -72,6 +82,7 @@ function makeHarness(): NewSessionHarness {
 	return {
 		ctx,
 		controller: new CommandController(ctx),
+		editor,
 		counts: {
 			newSession: () => newSession,
 			unfocusSession: () => unfocusSession,
@@ -97,6 +108,18 @@ describe("CommandController new-session teardown", () => {
 		expect(harness.counts.resetTranscriptAnchors()).toBe(1);
 		expect(harness.counts.resetTranscript()).toBe(1);
 		expect(harness.counts.presented()).toBe(1);
+	});
+
+	it("reloads arrow-key recall for the new session", async () => {
+		const harness = makeHarness();
+		harness.editor.handleInput("\x1b[A");
+		expect(harness.editor.getText()).toBe("previous session");
+		harness.editor.setText("");
+
+		await harness.controller.handleClearCommand();
+		harness.editor.handleInput("\x1b[A");
+
+		expect(harness.editor.getText()).toBe("new session");
 	});
 
 	it("skips the unfocus round-trip when already on the main session", async () => {

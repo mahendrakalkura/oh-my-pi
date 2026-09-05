@@ -767,7 +767,12 @@ export class Editor implements Component, Focusable {
 	 */
 	setHistoryStorage(storage: HistoryStorage): void {
 		this.#historyStorage = storage;
-		const recent = storage.getScoped(100, getProjectDir());
+		this.reloadHistory();
+	}
+
+	/** Reload the arrow-key history for the active storage scope. */
+	reloadHistory(): void {
+		const recent = this.#historyStorage?.getScoped(100, getProjectDir()) ?? [];
 		this.#history = recent.map(entry => entry.prompt);
 		this.#historyIndex = -1;
 	}
@@ -782,9 +787,12 @@ export class Editor implements Component, Focusable {
 
 		const stor = this.#historyStorage;
 		if (stor) {
-			stor.add(trimmed, getProjectDir()).catch(error => {
-				logger.error("HistoryStorage add failed", { error: String(error) });
-			});
+			stor.add(trimmed, getProjectDir()).then(
+				() => this.reloadHistory(),
+				error => {
+					logger.error("HistoryStorage add failed", { error: String(error) });
+				},
+			);
 		}
 
 		// Don't add consecutive duplicates

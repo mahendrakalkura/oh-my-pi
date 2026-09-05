@@ -251,6 +251,46 @@ describe("Editor component", () => {
 			expect(persisted).toEqual(["same"]);
 		});
 
+		it("replaces history when the active storage scope changes", () => {
+			let prompts = [{ prompt: "first session" }];
+			const editor = new Editor(defaultEditorTheme);
+			editor.setHistoryStorage({
+				add: () => Promise.resolve(),
+				getScoped: () => prompts,
+			});
+
+			editor.handleInput("\x1b[A");
+			expect(editor.getText()).toBe("first session");
+
+			editor.setText("");
+			prompts = [{ prompt: "second session" }];
+			editor.reloadHistory();
+			editor.handleInput("\x1b[A");
+
+			expect(editor.getText()).toBe("second session");
+		});
+
+		it("drops cwd fallback entries after the first session prompt persists", async () => {
+			const persisted = Promise.withResolvers<void>();
+			let prompts = [{ prompt: "cwd fallback" }];
+			const editor = new Editor(defaultEditorTheme);
+			editor.setHistoryStorage({
+				add: () => persisted.promise,
+				getScoped: () => prompts,
+			});
+
+			editor.addToHistory("first session prompt");
+			prompts = [{ prompt: "first session prompt" }];
+			persisted.resolve();
+			await persisted.promise;
+			await Promise.resolve();
+
+			editor.handleInput("\x1b[A");
+			expect(editor.getText()).toBe("first session prompt");
+			editor.handleInput("\x1b[A");
+			expect(editor.getText()).toBe("first session prompt");
+		});
+
 		it("allows non-consecutive duplicates in history", () => {
 			const editor = new Editor(defaultEditorTheme);
 

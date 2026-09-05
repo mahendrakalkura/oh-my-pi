@@ -1876,6 +1876,7 @@ export class SelectorController {
 		if (!detached) {
 			return false;
 		}
+		this.ctx.editor.reloadHistory();
 		this.#refreshSessionTerminalTitle();
 
 		this.ctx.clearTransientSessionUi();
@@ -1914,6 +1915,7 @@ export class SelectorController {
 		) {
 			return false;
 		}
+		this.ctx.editor.reloadHistory();
 		this.ctx.clearTransientSessionUi();
 		const newCwd = this.ctx.sessionManager.getCwd();
 		const movedProject = normalizePathForComparison(newCwd) !== normalizePathForComparison(previousCwd);

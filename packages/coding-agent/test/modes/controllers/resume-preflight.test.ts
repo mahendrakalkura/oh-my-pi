@@ -29,7 +29,8 @@ function createResumeContext(opts: { flushFails?: boolean; sourceCwd?: string; p
 	const moveTo = vi.fn(async (cwd: string) => {
 		state.cwd = cwd;
 	});
-	const editor = {};
+	const reloadHistory = vi.fn();
+	const editor = { reloadHistory };
 	let selector: SessionSelector.SessionSelectorComponent | undefined;
 	const hide = vi.fn();
 	const setFocus = vi.fn();
@@ -71,6 +72,7 @@ function createResumeContext(opts: { flushFails?: boolean; sourceCwd?: string; p
 		applyCwdChange,
 		moveTo,
 		state,
+		reloadHistory,
 		editor,
 		hide,
 		setFocus,
@@ -97,7 +99,9 @@ describe("SelectorController.handleResumeSession preflight flush", () => {
 	it("proceeds and returns true when flush succeeds", async () => {
 		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "omp-resume-preflight-"));
 		try {
-			const { ctx, switchSession, applyCwdChange, state } = createResumeContext({ sourceCwd: tmpDir });
+			const { ctx, switchSession, applyCwdChange, state, reloadHistory } = createResumeContext({
+				sourceCwd: tmpDir,
+			});
 			const targetCwd = await fs.mkdtemp(path.join(os.tmpdir(), "omp-resume-target-"));
 			switchSession.mockImplementation(async (_sessionPath, options) => {
 				state.cwd = targetCwd;
@@ -115,6 +119,7 @@ describe("SelectorController.handleResumeSession preflight flush", () => {
 				expect.objectContaining({ onCwdChange: expect.any(Function) }),
 			);
 			expect(applyCwdChange).toHaveBeenCalledWith(targetCwd);
+			expect(reloadHistory).toHaveBeenCalledTimes(1);
 			expect(ctx.showError).not.toHaveBeenCalled();
 			expect(ctx.showStatus).toHaveBeenCalled();
 
