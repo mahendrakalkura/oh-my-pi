@@ -158,6 +158,35 @@ Changed:
 
 Verified: the three affected files plus `test/config-cli.test.ts` and `test/modes/components/transcript-container.test.ts` give 59 pass, 0 fail from inside the package with the profile environment present. Before the preload the same set failed eight cases.
 
+## test(status-line): drop the brand timer assertion
+
+Commit `9bd9054c4d`.
+
+Upstream commit `2047a97174` added `packages/coding-agent/test/status-line-brand-fade.test.ts`, which asserted `expect(early).toContain(" 0s ")` at turn start. The duplicate brand timer patch above removed that timer and never touched the test, which arrived in the tree only on the rebase onto `origin/main`. The case now asserts the bar carries no seconds field, and keeps the surrounding glyph-swap and fade-color assertions unchanged.
+
+## fix(iso): pin diff path prefixes for change capture
+
+Commit `ec8cdd5c6b`.
+
+`crates/pi-iso/src/diff.rs` shells out to `git diff` and `parse_git_diff` splits the output on `diff --git a/<path> b/<path>`, stripping a literal `b/` at line 232. A `diff.mnemonicPrefix = true` user config renames those prefixes to `c/` and `w/`, so every captured path came back wrong and isolated-worktree change capture mis-parsed its own diff. `git_spawn` now pins `diff.mnemonicPrefix=false`, `diff.noprefix=false`, `diff.srcPrefix=a/` and `diff.dstPrefix=b/` on every invocation, beside the `core.quotepath=off` pin the diff call already carried.
+
+`crates/pi-vcs` needs no equivalent: it renders patches in-process through gix, which writes the `a/` prefix itself at `src/git/diff.rs:571`, so no git config reaches it.
+
+## test(vcs): keep the developer git config out of tests
+
+Commit `99c0dea424`.
+
+The same `diff.mnemonicPrefix` setting broke six Rust cases in `pi-vcs` and two in `packages/natives`, all of which compare in-process gix output against a reference `git` invocation that inherited the developer's config.
+
+Changed:
+
+- `scripts/test-preload.ts`: also pins `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` to `/dev/null`.
+- `packages/natives/bunfig.toml`: new, restates the root `preload` for package-local runs.
+- `packages/natives/test/vcs.test.ts`: the `git` helper passes `env: { ...Bun.env }`, because `Bun.spawn` hands a child the environment as it stood at process start and ignores the preload's mutation. Measured with a probe: the parent read `/dev/null` while the child read an empty value.
+- `crates/pi-vcs/src/git/diff.rs`, `crates/pi-vcs/src/git/patch.rs`, `crates/pi-vcs/src/lib.rs`: the test-only `git` helpers pin both config scopes per invocation, through a shared `stock_git` builder in the first two.
+
+Verified with the developer config in place: `cargo test -p pi-vcs -p pi-iso` gives 53 pass, 0 fail, against 6 failures before; `bun test test/vcs.test.ts` in `packages/natives` gives 7 pass; `bun run check:ts` exits 0.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
