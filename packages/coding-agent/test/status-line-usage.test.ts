@@ -231,10 +231,10 @@ describe("usage status-line segment", () => {
 				},
 				{
 					provider: "openai-codex",
-					metadata: { accountId: "active-account" },
+					metadata: { accountId: "active-account", planType: "prolite" },
 					limits: [
-						{ scope: { windowId: "5h", tier: "prolite" }, amount: { usedFraction: 0.24 } },
-						{ scope: { windowId: "7d", tier: "prolite" }, amount: { usedFraction: 0.08 } },
+						{ scope: { windowId: "5h" }, amount: { usedFraction: 0.24 } },
+						{ scope: { windowId: "7d" }, amount: { usedFraction: 0.08 } },
 					],
 				},
 			],
@@ -245,7 +245,7 @@ describe("usage status-line segment", () => {
 		await flushUsageRefresh();
 		const content = stripVTControlCharacters(component.getTopBorder(200).content);
 
-		expect(content).toContain("prolite");
+		expect(content).not.toContain("prolite");
 		expect(content).toContain("24%");
 		expect(content).toContain("8%");
 		expect(content).not.toContain("99%");
