@@ -179,6 +179,14 @@ async fn git_run_allow_exit1(cwd: &Path, args: &[&str]) -> IsoResult<Vec<u8>> {
 
 async fn git_spawn(cwd: &Path, args: &[&str]) -> IsoResult<std::process::Output> {
 	let mut cmd = Command::new("git");
+	// `parse_git_diff` splits on `diff --git a/<path> b/<path>` and strips the
+	// `b/` prefix, so a user config that renames the prefixes silently yields
+	// wrong paths. `diff.mnemonicPrefix` alone turns them into `c/` and `w/`.
+	// Pin the prefixes for every invocation, next to the existing
+	// `core.quotepath=off` pin on the diff call itself.
+	for pin in ["diff.mnemonicPrefix=false", "diff.noprefix=false", "diff.srcPrefix=a/", "diff.dstPrefix=b/"] {
+		cmd.arg("-c").arg(pin);
+	}
 	cmd.arg("-C").arg(cwd).args(args);
 	cmd.stdin(std::process::Stdio::null());
 	cmd.output().await.map_err(|err| {
