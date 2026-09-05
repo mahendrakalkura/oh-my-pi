@@ -2,11 +2,11 @@
 
 Local patches carried on the `mahendra` branch against upstream `can1357/oh-my-pi`. The branch is published to the fork `git@github.com:mahendrakalkura/oh-my-pi.git` so both machines run the same series; upstream stays `origin`.
 
-Commit hashes below are the ones current at base `18.1.10`. Every rebase onto `origin/main` rewrites them, so treat the subject line as the identifier and refresh the hashes when they drift.
+Commit hashes below are the ones current at base `18.1.11`. Every rebase onto `origin/main` rewrites them, so treat the subject line as the identifier and refresh the hashes when they drift.
 
 ## feat(editor): scope arrow-key recall to session then cwd
 
-Commits `47a4d047ad` and `1c0ae677eb`.
+Commits `c8036d7b10` and `5550498159`.
 
 Upstream lists every prompt ever submitted, from every project and every session, because `Editor.setHistoryStorage` loaded `HistoryStorage.getRecent(100)` with no filter. Recall now offers the prompts submitted in the active session, or the ones submitted in the current project when that session has none yet, which is the state of a fresh session. The editor reloads this scope after every interactive session transition and after the first prompt persists, so a new session cannot retain the previous session's in-memory recall list.
 
@@ -26,7 +26,7 @@ Verified live: in `~/projects/nagi-reddy/mailcrux`, Up recalled that project's n
 
 ## feat(status-line): add an active profile segment
 
-Commit `e6e8a9e9e4`.
+Commit `8c63b40ba8`.
 
 Fourteen profiles live under `~/.omp/profiles` and nothing in the status bar said which one was active.
 
@@ -41,7 +41,7 @@ Opt in per machine by listing `profile` in `statusLine.leftSegments`, which the 
 
 ## feat(slash-commands): copy the last answer on bare /copy
 
-Commits `98a39d3ef9`, `4929d8656e` and `b61f0fbab8`.
+Commits `bedca39ac2`, `532dde8c89` and `ada7336d72`.
 
 Upstream opens the transcript picker on bare `/copy`, so taking an answer whole meant descending through a selector. Bare `/copy` now puts the entire last assistant message on the clipboard, with no picker and no block selection. `/copy all` takes the whole conversation, `/copy pick` still opens the picker, and `code` and `cmd` are unchanged. Unlike `/dump` none of these writes an LLM-request JSON sidecar, so copying never leaves a file on disk.
 
@@ -58,7 +58,7 @@ Verified live: after an answer of `alpha-beta-gamma` the clipboard held exactly 
 
 ## feat(status-line): add a turn stopwatch segment
 
-Commit `9f6de58f56`.
+Commit `4210dd9d86`.
 
 Nothing reported how long the last turn took. `turnElapsedMs` goes null the moment the agent yields, and the `pi` brand timer is whole-unit only, so it reads `1m` for anything between one and two minutes. The `turn` segment renders the running turn live while the agent works, then that turn's duration once it settles.
 
@@ -75,13 +75,13 @@ Verified live: the bar ticked `0s`, `1s`, `2s` during a turn, then showed the re
 
 ## feat(status-line): drop the duplicate brand turn timer
 
-Commit `e2468e001b`.
+Commit `849e27fddb`.
 
 The `pi` brand segment printed a whole-unit turn timer beside its spinner, so with `turn` configured the running turn appeared twice, once as `1m` and once as `1m30s`. The brand keeps the spinner as the activity signal and `turn` owns the clock. `brandTimer` went with it, as nothing else called it.
 
 ## feat(status-line): let the time segment show the date
 
-Commit `3d2a279e5c`.
+Commit `3e20d83570`.
 
 The `time` segment printed a bare clock. `segmentOptions.time.showDate` turns it into a `yyyy-mm-dd hh:mm:ss` log stamp. In that mode the 24h hour is zero-padded, since an unpadded hour changes the field's width every morning and shifts the whole bar.
 
@@ -89,7 +89,7 @@ Changed: `StatusLineSegmentOptions.time` in `status-line/types.ts` and `timeSegm
 
 ## feat(status-line): read both duration segments as a clock
 
-Commit `668d8b9d55`.
+Commit `94f0f393cb`.
 
 `turn` and `time_spent` printed compound durations, `12s` then `1m30s` then `1h5m`. Both now render zero-padded `hh:mm` and never seconds. Two things drove it: the seconds field repainted the segment on every spinner tick, and the format's width changed as a turn crossed each unit boundary, shifting every segment beside it. A turn under a minute reads `00:00`, which is the cost of a fixed-width field.
 
@@ -103,7 +103,7 @@ The hour field grows past `99` rather than wrapping, and `time_spent` still hide
 
 ## feat(status-line): stamp the moment the last turn ended
 
-Commit `7cd3c76ef6`.
+Commit `03c7b1ed66`.
 
 The `time` segment reads the clock on every render, and nothing drives a wall-clock repaint: repaints come from the working loader, the brand fade, the compaction blink, async git/PR/usage resolves and keystrokes. So `time` neither ticked while idle nor recorded anything - it froze wherever the last repaint happened to land, and any later keystroke overwrote that value with the current time. Recording when the agent last yielded needs the instant captured at turn close, not sampled at paint time.
 
@@ -120,7 +120,7 @@ The segment keeps the previous end visible while the next turn runs, since the b
 
 ## feat(shutdown): drop the exit chatter
 
-Commit `5e50bd4969`.
+Commit `84393bc4f0`.
 
 Every exit printed two lines nobody reads. `#teardown` set a `Closing session…` status that flashes for the few milliseconds `session.dispose()` actually takes, and `shutdown` wrote a dim `Resume this session with omp --resume <id>` hint that repeats what `/resume` and the recent-sessions list already offer.
 
@@ -133,7 +133,7 @@ The `Still closing…` status stays. It fires only after `STILL_CLOSING_DELAY_MS
 
 ## fix(transcript): drop the shutdown flush trailing blank
 
-Commit `0bea171225`.
+Commit `22b310d0f4`.
 
 Quitting shifted the final frame down one row: the transcript, the composer gap, then a second empty row above the status box that the terminal keeps in scrollback after exit. `TranscriptContainer.#renderRange` appends a blank separator to every history batch, and `TUI.stop()` retires the remaining transcript through `peekFlushBatch` with that blank attached. Under pressure the blank is correct, since more live transcript follows it and renders with no leading gap. A shutdown flush has no successor and the chrome below supplies its own gap.
 
@@ -146,7 +146,7 @@ Verified with a throwaway `VirtualTerminal` end-to-end harness, since the row sh
 
 ## test(settings): keep the ambient config overlay out of tests
 
-Commit `80ec08fd6c`.
+Commit `2194480852`.
 
 A session launched by `omp` exports `PI_CONFIG_FILES` pointing at the dotfiles overlay, and the `Settings` constructor reads that variable at `packages/coding-agent/src/config/settings.ts:541`, before any `inMemory` or `readOnly` branch. Every test that initializes settings therefore inherited the developer's own preferences. The overlay's `startup.quiet: true` suppresses the welcome panel, and the panel's border title is where the version string lives, so each test that counts welcome rows read zero: eight failures across `test/startup-composer.test.ts`, `test/issue-9597-cold-launch-double-clear.test.ts` and `test/interactive-terminal-e2e.test.ts`. The failure imitates upstream breakage, because an `origin/main` worktree inherits the same exported environment and fails identically.
 
@@ -162,13 +162,13 @@ Verified: the three affected files plus `test/config-cli.test.ts` and `test/mode
 
 ## test(status-line): drop the brand timer assertion
 
-Commit `c820ad4632`.
+Commit `08ae3b587c`.
 
 Upstream commit `2047a97174` added `packages/coding-agent/test/status-line-brand-fade.test.ts`, which asserted `expect(early).toContain(" 0s ")` at turn start. The duplicate brand timer patch above removed that timer and never touched the test, which arrived in the tree only on the rebase onto `origin/main`. The case now asserts the bar carries no seconds field, and keeps the surrounding glyph-swap and fade-color assertions unchanged.
 
 ## fix(iso): pin diff path prefixes for change capture
 
-Commit `f5d8abfb04`.
+Commit `704ed95d8b`.
 
 `crates/pi-iso/src/diff.rs` shells out to `git diff` and `parse_git_diff` splits the output on `diff --git a/<path> b/<path>`, stripping a literal `b/` at line 232. A `diff.mnemonicPrefix = true` user config renames those prefixes to `c/` and `w/`, so every captured path came back wrong and isolated-worktree change capture mis-parsed its own diff. `git_spawn` now pins `diff.mnemonicPrefix=false`, `diff.noprefix=false`, `diff.srcPrefix=a/` and `diff.dstPrefix=b/` on every invocation, beside the `core.quotepath=off` pin the diff call already carried.
 
@@ -176,7 +176,7 @@ Commit `f5d8abfb04`.
 
 ## test(vcs): keep the developer git config out of tests
 
-Commit `05ca03b352`.
+Commit `f8a06960e9`.
 
 The same `diff.mnemonicPrefix` setting broke six Rust cases in `pi-vcs` and two in `packages/natives`, all of which compare in-process gix output against a reference `git` invocation that inherited the developer's config.
 
@@ -191,7 +191,7 @@ Verified with the developer config in place: `cargo test -p pi-vcs -p pi-iso` gi
 
 ## fix(status-line): hide OpenAI plan labels
 
-Commit `e2c76baab0`.
+Commit `36ff545ef3`.
 
 OpenAI reports account plans such as `plus`, `pro`, and `prolite` beside usage windows. The account plan does not help interpret quota percentages and takes permanent status-line width. OpenAI account plan labels are now omitted while scoped model tiers such as `spark` remain visible. Other providers keep their existing plan labels.
 
