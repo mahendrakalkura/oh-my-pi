@@ -83,7 +83,7 @@ interface TranscriptEntry {
 type RetirementPolicy = "pressure" | "flush";
 type Offered =
 	| { batch: HistoryBatch; kind: "append"; entry: number; emittedEnd: number }
-	| { batch: HistoryBatch; kind: "commit"; end: number }
+	| { batch: HistoryBatch; kind: "commit"; end: number; trailingBlank: boolean }
 	| { batch: HistoryBatch; kind: "replay" };
 
 const MAX_LIVE_BLOCKS = 256;
@@ -390,7 +390,7 @@ export class TranscriptContainer extends Container {
 			const after = this.#renderStablePrefix(entry, offered.emittedEnd, width);
 			rows = after.slice(before.length);
 		} else if (offered.kind === "commit") {
-			rows = this.#renderRange(this.#frontier, offered.end, width, true);
+			rows = this.#renderRange(this.#frontier, offered.end, width, offered.trailingBlank);
 		} else {
 			rows = this.#renderReplay(width);
 		}
@@ -477,12 +477,18 @@ export class TranscriptContainer extends Container {
 			return undefined;
 		}
 		this.#pinnedFrontier = undefined;
+		// A pressure retirement is followed by more live transcript, so the batch
+		// carries the blank row that separates it from the next block. A shutdown
+		// flush has no successor: the composer chrome below supplies its own gap,
+		// so a trailing blank here lands as a stray empty row above the final
+		// status frame the terminal keeps after exit.
+		const trailingBlank = policy !== "flush";
 		const batch: HistoryBatch = {
 			id: this.#nextBatchId++,
-			rows: this.#renderRange(this.#frontier, end, width, true),
+			rows: this.#renderRange(this.#frontier, end, width, trailingBlank),
 			kind: "append",
 		};
-		this.#offered = { batch, end, kind: "commit" };
+		this.#offered = { batch, end, kind: "commit", trailingBlank };
 		return batch;
 	}
 

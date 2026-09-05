@@ -473,7 +473,7 @@ describe("TranscriptContainer", () => {
 		transcript.addChild(new Block(["fits"], true));
 
 		expect(transcript.peekFinalizedBatch(80, 10)).toBeUndefined();
-		expect(transcript.peekFlushBatch(80)?.rows).toEqual(["fits", ""]);
+		expect(transcript.peekFlushBatch(80)?.rows).toEqual(["fits"]);
 	});
 
 	it("keeps the live viewport while an independent replay is offered", () => {
@@ -510,6 +510,6 @@ describe("TranscriptContainer", () => {
 
 		transcript.beginReplay();
 		transcript.cancelReplay();
-		expect(transcript.peekFlushBatch(80)?.rows).toEqual(["tail", ""]);
+		expect(transcript.peekFlushBatch(80)?.rows).toEqual(["tail"]);
 	});
 });
