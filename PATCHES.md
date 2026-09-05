@@ -156,6 +156,8 @@ Iterate without compiling: `bun dev -- --version`, `bun dev -- --help`, and so o
 
 Check before committing: `bun run check:ts`, plus `bun test` in the package touched.
 
+Run those tests with the profile environment stripped: `env -u PI_CONFIG_FILES -u PI_CODING_AGENT_DIR -u OMP_PROFILE -u PI_PROFILE bun test <file>`. A session launched by `omp` exports `PI_CONFIG_FILES` pointing at the dotfiles overlay, and `Settings.init({ inMemory: true })` still reads that layer - `inMemory` blocks writes, not ambient config. The overlay's `startup.quiet: true` suppresses the welcome panel, and the panel's border title is where the version string lives, so every test that counts welcome rows reads zero. That is eight failures across `test/startup-composer.test.ts`, `test/issue-9597-cold-launch-double-clear.test.ts` and `test/interactive-terminal-e2e.test.ts`, all of which pass in a clean environment. The failure looks like upstream breakage because it reproduces on an `origin/main` worktree, which inherits the same exported env.
+
 `omp-sync` pulls the fork and rebuilds the installed binary. `omp-sync --rebase` replays this series onto the latest `origin/main` first, with rerere replaying recorded conflict resolutions. `omp-sync --publish` overwrites the fork with the local series after an amend or a local rebase.
 
 Keep one commit per concern so a conflict stays confined to the commit that collided. Upstreaming a patch means branching off `origin/main`, cherry-picking the single commit, pushing that branch to the fork, and opening the PR against `can1357/oh-my-pi`; the `mahendra` branch itself is never the PR head.
