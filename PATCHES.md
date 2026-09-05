@@ -6,17 +6,19 @@ Commit hashes below are the ones current at base `18.1.10`. Every rebase onto `o
 
 ## feat(editor): scope arrow-key recall to session then cwd
 
-Commit `b94af864f3`.
+Commits `b94af864f3` and `5f4b834a46`.
 
-Upstream lists every prompt ever submitted, from every project and every session, because `Editor.setHistoryStorage` loaded `HistoryStorage.getRecent(100)` with no filter. Recall now offers the prompts submitted in the active session, or the ones submitted in the current project when that session has none yet, which is the state of a fresh session. A brand-new session in a brand-new project starts with an empty list rather than falling back to the global one.
+Upstream lists every prompt ever submitted, from every project and every session, because `Editor.setHistoryStorage` loaded `HistoryStorage.getRecent(100)` with no filter. Recall now offers the prompts submitted in the active session, or the ones submitted in the current project when that session has none yet, which is the state of a fresh session. The editor reloads this scope after every interactive session transition and after the first prompt persists, so a new session cannot retain the previous session's in-memory recall list.
 
 Changed:
 
 - `packages/coding-agent/src/session/history-storage.ts`: added `getScoped(limit, cwd?)` plus the `#recentBySessionStmt` and `#recentByCwdStmt` prepared statements, both finalized in `#close()`. `getRecent` is untouched because the Ctrl+R search popup still uses it and stays global.
-- `packages/tui/src/components/editor.ts`: the duck-typed `HistoryStorage` port now declares `getScoped` instead of `getRecent`, and `setHistoryStorage` calls `storage.getScoped(100, getProjectDir())`.
+- `packages/tui/src/components/editor.ts`: the duck-typed `HistoryStorage` port now declares `getScoped` instead of `getRecent`; `setHistoryStorage` and the public `reloadHistory()` load the active scope, while a completed `add()` reload drops cwd fallback entries after the first session prompt persists.
 - `packages/coding-agent/src/modes/interactive-mode.ts`: `setSessionResolver` moved ahead of `setHistoryStorage`. The scoped load reads the resolver, so the old order made every session take the cwd branch.
-- `packages/tui/test/editor.test.ts`: the fake storage implements `getScoped`.
-- `packages/coding-agent/test/history-storage-scoped.test.ts`: new, five cases covering session precedence, the cwd fallback, the no-session fallback, the empty result when neither scope matches, and ordering plus limit.
+- `packages/coding-agent/src/modes/controllers/{command-controller,extension-ui-controller,selector-controller}.ts`: successful interactive new-session, resume, branch, and active-session deletion transitions reload editor history.
+- `packages/tui/test/editor.test.ts`: storage fakes use `getScoped`, with regressions for changing scopes and replacing cwd fallback after the first session prompt.
+- `packages/coding-agent/test/command-controller-new-session.test.ts` and `packages/coding-agent/test/modes/controllers/resume-preflight.test.ts`: new-session recall and resume-boundary reload regressions.
+- `packages/coding-agent/test/history-storage-scoped.test.ts`: five cases cover session precedence, the cwd fallback, the no-session fallback, the empty result when neither scope matches, and ordering plus limit.
 
 No schema change. The `session_id` and `cwd` columns already existed and were already populated; only the read path is new. Because `prompt` is globally UNIQUE and the upsert overwrites provenance, a prompt reused in another project moves there and leaves the first project's recall.
 
