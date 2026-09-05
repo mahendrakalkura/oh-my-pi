@@ -127,6 +127,19 @@ Changed:
 
 The `Still closing…` status stays. It fires only after `STILL_CLOSING_DELAY_MS`, so it never appears on a normal quit and is the only signal that a stalled memory flush is the reason the terminal has not come back.
 
+## fix(transcript): drop the shutdown flush trailing blank
+
+Commit `7b7a63fb61`.
+
+Quitting shifted the final frame down one row: the transcript, the composer gap, then a second empty row above the status box that the terminal keeps in scrollback after exit. `TranscriptContainer.#renderRange` appends a blank separator to every history batch, and `TUI.stop()` retires the remaining transcript through `peekFlushBatch` with that blank attached. Under pressure the blank is correct, since more live transcript follows it and renders with no leading gap. A shutdown flush has no successor and the chrome below supplies its own gap.
+
+Changed:
+
+- `packages/coding-agent/src/modes/components/transcript-container.ts`: `#peekBatch` passes `trailingBlank = policy !== "flush"` into `#renderRange`, and the `commit` variant of `Offered` carries the flag so `rerenderOfferedBatch` reproduces the same rows when a frame is discarded. The pressure path is unchanged.
+- `packages/coding-agent/test/modes/components/transcript-container.test.ts`: the two flush cases now expect `["fits"]` and `["tail"]` instead of a trailing `""`.
+
+Verified with a throwaway `VirtualTerminal` end-to-end harness, since the row shift is only observable in the terminal buffer: before the fix the scroll buffer moved the status box from rows 6-7 to rows 7-8 across `mode.stop()`, and after it the before and after buffers are identical. The composer and end-to-end suites fail the same eight pre-existing cases with and without the change.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
