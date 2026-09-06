@@ -201,6 +201,23 @@ Changed:
 - `packages/coding-agent/test/status-line-usage.test.ts`: the active-account case verifies `prolite` stays hidden while both quota windows remain.
 - `packages/coding-agent/CHANGELOG.md`: records the user-visible status-line change.
 
+## fix(todo): synchronize canonical state
+
+Commits `81b4efc35d` and `9ec0ab0436`.
+
+Todo mutations previously followed separate persistence and display paths for direct tool calls, eval bridges, slash commands, RPC, Cursor, ACP, session reloads, and collaboration. Those paths could disagree, overwrite newer snapshots, lose changes after reload or compaction, and leave the model's displayed progress stale. Every writer now crosses one revisioned `AgentSession.setTodoPhases` boundary, while hydration rejects stale or identical snapshots without creating journal entries.
+
+Changed:
+
+- `packages/coding-agent/src/session/{agent-session,agent-session-events,todo-tracker}.ts` and `packages/coding-agent/src/tools/todo.ts`: added canonical revisioned snapshots, branch recovery, explicit task transitions, post-compaction context, bounded completion reminders, blocked-task yielding, and latest-user precedence.
+- `packages/coding-agent/src/{cursor,sdk}.ts`, `packages/coding-agent/src/modes/`, and `packages/coding-agent/src/slash-commands/helpers/todo.ts`: routed Cursor, eval, RPC, ACP, TUI, focus changes, and slash commands through the canonical boundary and revision-aware UI events.
+- `packages/coding-agent/src/collab/` and `packages/wire/src/index.ts`: replicated bounded, schema-valid todo snapshots in welcome state and live events, including stale-revision protection and UTF-8 payload measurement.
+- `packages/collab-web/src/`: added a persistent live todo panel with completion counts and blocked reasons; the mock host now supplies representative todo state.
+- Focused tests cover persistence, reloads, revisions, Cursor, ACP, RPC contracts, collaboration, explicit progress, compaction, reminder bounds, user questions, blocked work, and panel rendering.
+- `packages/coding-agent/CHANGELOG.md`, `packages/collab-web/CHANGELOG.md`, and `packages/wire/CHANGELOG.md`: record the user-visible behavior and wire additions.
+
+Verified live: the TUI moved a slash-command todo through pending, in-progress, and completed states with the HUD reaching `1/1`; the collaboration web guest rendered the host's `1/2` live board. Focused todo, RPC, ACP, Cursor, and collaboration tests pass; `bun check` exits 0.
+
 ## Configuration, not patches
 
 These behaviors were requested alongside the patches and turned out to need no code. They live in `.agents/omp/config.yml` in the dotfiles.
