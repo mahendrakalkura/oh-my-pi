@@ -215,7 +215,7 @@ import {
 	writeDeviceDispatch,
 } from "../tools/resolve";
 import { supportsExternalThinking } from "../tools/think";
-import type { TodoPhase } from "../tools/todo";
+import { getLatestTodoStateFromEntries, type TodoPhase, USER_TODO_EDIT_CUSTOM_TYPE } from "../tools/todo";
 import { ToolError } from "../tools/tool-errors";
 import type { WorkPoolYieldItem } from "../task/workpool-yield";
 import { parseCommandArgs } from "../utils/command-args";
@@ -620,6 +620,7 @@ export class AgentSession {
 	#planModeReminderCount = 0;
 	#planModeReminderAwaitingProgress = false;
 	readonly #todo: TodoTracker;
+	#todoRevision = 0;
 	#workPoolYieldItems: readonly WorkPoolYieldItem[] = [];
 	#replanTitleRefreshInFlight: Promise<void> | undefined = undefined;
 	/** Resolved TITLE_SYSTEM.md override applied to every automatic session-title
@@ -1607,7 +1608,7 @@ export class AgentSession {
 		this.agent.beforeToolCall = (ctx, signal) => this.#beforeToolCall(ctx, signal);
 		this.agent.providerSessionState = this.#providerSessionState;
 		this.#syncAgentSessionId();
-		this.#todo.syncFromBranch();
+		this.#syncTodoStateFromBranch();
 		this.#goalRuntime = new GoalRuntime({
 			getState: () => this.#goalModeState,
 			setState: state => {
@@ -1759,7 +1760,7 @@ export class AgentSession {
 			resetPlanReference: () => {
 				this.#planReferenceSent = false;
 			},
-			syncTodoPhasesFromBranch: () => this.#todo.syncFromBranch(),
+			syncTodoPhasesFromBranch: () => this.#syncTodoStateFromBranch(),
 			resetAdvisorRuntimes: (reason?: string) => this.#advisors.resetAllRuntimes(reason),
 			rebaseAfterCompaction: () => this.#stats.rebaseAfterCompaction(),
 			recordAnchoredHistoryRewrite: tokensRemoved => this.#stats.recordAnchoredHistoryRewrite(tokensRemoved),
@@ -7287,8 +7288,60 @@ export class AgentSession {
 		return this.#todo.phases;
 	}
 
-	setTodoPhases(phases: TodoPhase[]): void {
+	getTodoRevision(): number {
+		return this.#todoRevision;
+	}
+
+	/**
+	 * Replace todo state without persistence or event emission.
+	 *
+	 * Used only when hydrating a transcript or an authoritative collab snapshot.
+	 * Returns false when a live snapshot is stale or unchanged.
+	 */
+	hydrateTodoPhases(phases: TodoPhase[], revision: number): boolean {
+		if (!Number.isSafeInteger(revision) || revision < 0 || revision < this.#todoRevision) return false;
+		const current = this.#todo.phases;
+		const unchanged =
+			revision === this.#todoRevision &&
+			current.length === phases.length &&
+			current.every((phase, phaseIndex) => {
+				const incoming = phases[phaseIndex];
+				return (
+					incoming !== undefined &&
+					phase.name === incoming.name &&
+					phase.tasks.length === incoming.tasks.length &&
+					phase.tasks.every((task, taskIndex) => {
+						const incomingTask = incoming.tasks[taskIndex];
+						return (
+							incomingTask !== undefined &&
+							task.blocker === incomingTask.blocker &&
+							task.content === incomingTask.content &&
+							task.status === incomingTask.status
+						);
+					})
+				);
+			});
+		if (unchanged) return false;
 		this.#todo.setPhases(phases);
+		this.#todoRevision = revision;
+		return true;
+	}
+
+	/** Canonical todo mutation boundary: update, version, persist, and notify. */
+	setTodoPhases(phases: TodoPhase[]): number {
+		this.#todo.setPhases(phases);
+		const revision = ++this.#todoRevision;
+		const snapshot = this.#todo.phases;
+		this.sessionManager.appendCustomEntry(USER_TODO_EDIT_CUSTOM_TYPE, { phases: snapshot, revision });
+		this.#emit({ type: "todo_updated", phases: snapshot, revision });
+		return revision;
+	}
+
+	/** Rehydrate from the active branch without creating another journal entry. */
+	#syncTodoStateFromBranch(): void {
+		const state = getLatestTodoStateFromEntries(this.sessionManager.getBranch());
+		this.#todo.setPhases(state.phases);
+		this.#todoRevision = state.revision;
 	}
 
 	/** Active item labels accepted by this pooled turn's incremental yield tool. */
@@ -7616,7 +7669,7 @@ export class AgentSession {
 
 			this.#clearSessionScopedToolState();
 			this.#clearCheckpointRuntimeState();
-			this.setTodoPhases([]);
+			this.#syncTodoStateFromBranch();
 			this.#freshProviderSessionId = undefined;
 			this.#clearInheritedProviderPromptCacheKey();
 			this.#syncAgentSessionId();
@@ -8104,7 +8157,7 @@ export class AgentSession {
 		}
 		this.agent.replaceMessages(activeMessages ?? sessionContext.messages);
 		this.#advisors.resetSessionState({ preserveCost: true });
-		this.#todo.syncFromBranch();
+		this.#syncTodoStateFromBranch();
 		this.#closeCodexProviderSessionsForHistoryRewrite();
 		this.#checkpointState = undefined;
 		this.#pendingRewindReport = undefined;
@@ -8849,7 +8902,7 @@ export class AgentSession {
 
 			this.agent.replaceMessages(sessionContext.messages);
 			this.#advisors.resetSessionState({ preserveCost: true });
-			this.#todo.syncFromBranch();
+			this.#syncTodoStateFromBranch();
 			if (switchingToDifferentSession) {
 				this.#closeAllProviderSessions("session switch");
 			} else if (didReloadConversationChange) {
@@ -9022,7 +9075,7 @@ export class AgentSession {
 			if (modelRolledBack) {
 				this.#emit({ type: "model_changed" });
 			}
-			this.#todo.syncFromBranch();
+			this.#syncTodoStateFromBranch();
 			this.#advisors.resetAllRuntimes();
 			this.#advisors.reattachRecorderFeeds();
 			this.#reconnectToAgent();
@@ -9133,7 +9186,7 @@ export class AgentSession {
 			}
 			this.#clearSessionScopedToolState();
 			this.#rehydrateCheckpointRewindState();
-			this.#todo.syncFromBranch();
+			this.#syncTodoStateFromBranch();
 			this.#freshProviderSessionId = undefined;
 			this.#clearInheritedProviderPromptCacheKey();
 			this.#syncAgentSessionId();
@@ -9265,7 +9318,7 @@ export class AgentSession {
 				timestamp: Date.now(),
 			});
 			this.sessionManager.appendMessage(sanitizeAssistantForReparentedHistory(assistantMessage));
-			this.#todo.syncFromBranch();
+			this.#syncTodoStateFromBranch();
 			this.#freshProviderSessionId = undefined;
 			this.#syncAgentSessionId();
 			this.#memory.rekeyForCurrentSessionId();
@@ -9598,7 +9651,7 @@ export class AgentSession {
 		this.agent.replaceMessages(displayContext.messages);
 		this.#rehydrateCheckpointRewindState();
 		this.#advisors.resetSessionState({ preserveCost: true });
-		this.#todo.syncFromBranch();
+		this.#syncTodoStateFromBranch();
 		this.#closeCodexProviderSessionsForHistoryRewrite();
 
 		this.#branchSummaryAbortController = undefined;

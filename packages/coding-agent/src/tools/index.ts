@@ -379,6 +379,8 @@ export interface ToolSession {
 	getClientBridge?: () => ClientBridge | undefined;
 	/** Get cached todo phases for this session. */
 	getTodoPhases?: () => TodoPhase[];
+	/** Current monotonic todo snapshot revision. */
+	getTodoRevision?: () => number;
 	/** Replace cached todo phases for this session. */
 	setTodoPhases?: (phases: TodoPhase[]) => void;
 	/** Active workpool items whose incremental yields complete the current turn. */

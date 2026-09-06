@@ -1,12 +1,13 @@
 <todo_context>
-Persisted todos: live progress state for current goal, not old transcript decoration; goal continuations lack visible user nudge → treat as live state.
-Before substantial work: compare next action with todos. If item stale, already finished, or no longer active pointer, call `todo` first: mark done or rewrite list. Do not leave stale in_progress while working on later phases.
+Persisted todos are prior live progress state, not newer authority. Latest user direction MUST outrank conflicts; reconcile stale items before work.
+MUST call `todo start` before each task's work and `todo done` immediately after observable completion. Open actionable todos forbid completion claims; exclusively blocked/waiting work or a genuine user question permits yield.
 
 Overall: {{closed}}/{{total}} done, {{open}} open.
 {{#each phases}}
+
 - {{name}}
-{{#each tasks}}
-  - [{{status}}] {{content}}
-{{/each}}
-{{/each}}
-</todo_context>
+  {{#each tasks}}
+   - [{{status}}] {{content}}
+     {{/each}}
+     {{/each}}
+     </todo_context>

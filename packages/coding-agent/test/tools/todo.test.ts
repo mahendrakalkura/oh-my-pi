@@ -6,6 +6,7 @@ import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { initTheme, theme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import {
+	getLatestTodoStateFromEntries,
 	markdownToPhases,
 	nextActionableTask,
 	phasesToMarkdown,
@@ -19,10 +20,12 @@ import {
 	todoMatchesAnyDescription,
 	todoToolRenderer,
 } from "@oh-my-pi/pi-coding-agent/tools";
+import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
 import type { Component } from "@oh-my-pi/pi-tui";
 
-function createSession(initialPhases: TodoPhase[] = []): ToolSession {
+function createSession(initialPhases: TodoPhase[] = [], initialRevision = 0): ToolSession {
 	let phases = initialPhases;
+	let revision = initialRevision;
 	return {
 		cwd: "/tmp/test",
 		hasUI: false,
@@ -30,8 +33,10 @@ function createSession(initialPhases: TodoPhase[] = []): ToolSession {
 		getSessionSpawns: () => "*",
 		settings: Settings.isolated(),
 		getTodoPhases: () => phases,
+		getTodoRevision: () => revision,
 		setTodoPhases: next => {
 			phases = next;
+			revision++;
 		},
 	};
 }
@@ -60,8 +65,8 @@ describe("resolveTodoMarkdownPath", () => {
 	});
 });
 
-describe("TodoTool auto-start behavior", () => {
-	it("auto-starts the first task after init", async () => {
+describe("TodoTool explicit progress behavior", () => {
+	it("keeps every initialized task pending until start", async () => {
 		const tool = new TodoTool(createSession());
 		const result = await tool.execute("call-1", {
 			op: "init",
@@ -69,36 +74,82 @@ describe("TodoTool auto-start behavior", () => {
 		});
 
 		const tasks = result.details?.phases[0]?.tasks ?? [];
-		expect(tasks.map(task => task.status)).toEqual(["in_progress", "pending"]);
+		expect(tasks.map(task => task.status)).toEqual(["pending", "pending"]);
 		const summary = result.content.find(part => part.type === "text");
 		if (summary?.type !== "text") throw new Error("Expected text summary from todo");
-		expect(summary.text).toContain("Remaining items (2):");
-		expect(summary.text).toContain("status [in_progress] (Execution)");
+		expect(summary.text).toContain("status [pending] (Execution)");
 		expect(summary.text).toContain("diagnostics [pending] (Execution)");
 	});
 
-	it("auto-promotes the next pending task when current task is completed", async () => {
+	it("does not infer a successor when the current task completes", async () => {
 		const tool = new TodoTool(createSession());
 		await tool.execute("call-1", {
 			op: "init",
 			list: [{ phase: "Execution", items: ["status", "diagnostics"] }],
 		});
+		await tool.execute("call-2", { op: "start", task: "status" });
 
-		const result = await tool.execute("call-2", { op: "done", task: "status" });
+		const result = await tool.execute("call-3", { op: "done", task: "status" });
 
 		const tasks = result.details?.phases[0]?.tasks ?? [];
-		expect(tasks.map(task => task.status)).toEqual(["completed", "in_progress"]);
+		expect(tasks.map(task => task.status)).toEqual(["completed", "pending"]);
 		expect(result.details?.completedTasks).toEqual([{ phase: "Execution", content: "status" }]);
 		const summary = result.content.find(part => part.type === "text");
 		if (summary?.type !== "text") throw new Error("Expected text summary from todo");
-		expect(summary.text).toContain("Remaining items (1):");
-		expect(summary.text).toContain("diagnostics [in_progress] (Execution)");
-		const completedResult = await tool.execute("call-3", { op: "done", task: "diagnostics" });
-		const completedSummary = completedResult.content.find(part => part.type === "text");
-		if (completedSummary?.type !== "text") {
-			throw new Error("Expected text summary from todo");
-		}
-		expect(completedSummary.text).toContain("Remaining items: none.");
+		expect(summary.text).toContain("diagnostics [pending] (Execution)");
+	});
+});
+
+describe("persisted todo recovery", () => {
+	const phases = (content: string, status: TodoItem["status"] = "pending"): TodoPhase[] => [
+		{ name: "Work", tasks: [{ content, status }] },
+	];
+	const entry = (
+		content: string,
+		options: { canonical?: boolean; revision?: number; status?: TodoItem["status"] } = {},
+	): SessionEntry =>
+		((options.canonical ?? true)
+			? {
+					type: "custom",
+					customType: "user_todo_edit",
+					data: { phases: phases(content, options.status), revision: options.revision },
+				}
+			: {
+					type: "message",
+					message: {
+						role: "toolResult",
+						toolName: "todo",
+						isError: false,
+						details: { phases: phases(content, options.status), revision: options.revision },
+					},
+				}) as unknown as SessionEntry;
+
+	it("selects the greatest revision instead of the latest transcript result", () => {
+		const recovered = getLatestTodoStateFromEntries([
+			entry("canonical newest", { revision: 7 }),
+			entry("stale direct result", { canonical: false, revision: 6, status: "in_progress" }),
+			entry("legacy tail", { canonical: false }),
+		]);
+
+		expect(recovered).toEqual({ phases: phases("canonical newest"), revision: 7 });
+	});
+
+	it("prefers the canonical snapshot over a direct result at equal revision", () => {
+		const recovered = getLatestTodoStateFromEntries([
+			entry("canonical", { revision: 4 }),
+			entry("direct transcript", { canonical: false, revision: 4, status: "in_progress" }),
+		]);
+
+		expect(recovered).toEqual({ phases: phases("canonical"), revision: 4 });
+	});
+
+	it("recovers the latest legacy snapshot at revision zero", () => {
+		const recovered = getLatestTodoStateFromEntries([
+			entry("older legacy"),
+			entry("latest legacy", { canonical: false }),
+		]);
+
+		expect(recovered).toEqual({ phases: phases("latest legacy"), revision: 0 });
 	});
 });
 
@@ -175,18 +226,33 @@ describe("TodoTool operations", () => {
 				{ phase: "B", items: ["b1"] },
 			],
 		});
+		await tool.execute("call-2", { op: "start", task: "a1" });
 
-		const result = await tool.execute("call-2", { op: "start", task: "b1" });
+		const result = await tool.execute("call-3", { op: "start", task: "b1" });
 
 		const allTasks = result.details?.phases.flatMap(phase => phase.tasks) ?? [];
 		expect(allTasks.map(task => task.status)).toEqual(["pending", "pending", "in_progress"]);
 	});
 
-	it("appends items to an existing phase", async () => {
+	it("returns the canonical revision after mutation and without mutating on view", async () => {
+		const session = createSession([], 9);
+		const tool = new TodoTool(session);
+		const initialized = await tool.execute("call-1", {
+			op: "init",
+			list: [{ phase: "Work", items: ["First"] }],
+		});
+		expect(initialized.details?.revision).toBe(10);
+
+		const viewed = await tool.execute("call-2", { op: "view" });
+		expect(viewed.details?.revision).toBe(10);
+	});
+
+	it("appends pending items without changing the explicit current task", async () => {
 		const tool = new TodoTool(createSession());
 		await tool.execute("call-1", { op: "init", list: [{ phase: "Work", items: ["First"] }] });
+		await tool.execute("call-2", { op: "start", task: "First" });
 
-		const result = await tool.execute("call-2", {
+		const result = await tool.execute("call-3", {
 			op: "append",
 			phase: "Work",
 			items: ["Second"],
@@ -213,19 +279,22 @@ describe("TodoTool operations", () => {
 		expect(summary.text).toContain("Remaining items (1):");
 		expect(summary.text).toContain("1 blocked");
 
-		const unblocked = await tool.execute("call-3", { op: "unblock", task: "b" });
+		const rejectedStart = await tool.execute("call-3", { op: "start", task: "b" });
+		expect(rejectedStart.isError).toBe(true);
+		expect(rejectedStart.details?.phases[0]?.tasks.find(task => task.content === "b")?.status).toBe("blocked");
+
+		const unblocked = await tool.execute("call-4", { op: "unblock", task: "b" });
 		const bAfter = unblocked.details?.phases[0]?.tasks.find(task => task.content === "b");
 		expect(bAfter?.status).toBe("pending");
 		expect(bAfter?.blocker).toBeUndefined();
 	});
 
-	it("does not auto-promote a blocked task to in_progress", async () => {
+	it("blocking pending work does not infer active work", async () => {
 		const tool = new TodoTool(createSession());
 		await tool.execute("call-1", { op: "init", list: [{ phase: "Work", items: ["only"] }] });
 
 		const result = await tool.execute("call-2", { op: "block", task: "only" });
 
-		// `only` was in_progress; blocking it leaves no pending/in_progress, so normalization must not revive it.
 		expect(result.details?.phases[0]?.tasks[0]?.status).toBe("blocked");
 	});
 
@@ -379,7 +448,7 @@ describe("TodoTool operations", () => {
 
 		const result = await tool.execute("call-2", { op: "done", phase: "Work" });
 		const allTasks = result.details?.phases.flatMap(phase => phase.tasks) ?? [];
-		expect(allTasks.map(task => task.status)).toEqual(["completed", "completed", "in_progress"]);
+		expect(allTasks.map(task => task.status)).toEqual(["completed", "completed", "pending"]);
 	});
 
 	it("removes all tasks when rm omits task and phase", async () => {
@@ -463,7 +532,7 @@ describe("TodoTool lenient init shapes", () => {
 		expect(result.details?.phases.map(phase => phase.name)).toEqual(["Tasks"]);
 		const tasks = result.details?.phases[0]?.tasks ?? [];
 		expect(tasks.map(task => ({ content: task.content, status: task.status }))).toEqual([
-			{ content: "First", status: "in_progress" },
+			{ content: "First", status: "pending" },
 			{ content: "Second", status: "pending" },
 		]);
 	});
@@ -640,8 +709,8 @@ describe("todoToolRenderer.renderResult phase collapsing", () => {
 				{ phase: "Gamma", items: ["c1", "c2"] },
 			],
 		});
-		// `done a1` keeps the active task inside Alpha (auto-promotes a2), leaving
-		// Beta and Gamma untouched by this update.
+		// `done a1` leaves a2 pending; the completion transition keeps Alpha
+		// expanded without inventing a new in-progress task.
 		return tool.execute("done", { op: "done", task: "a1" });
 	}
 	function innerLines(component: Component): string[] {
@@ -653,17 +722,15 @@ describe("todoToolRenderer.renderResult phase collapsing", () => {
 				.trim(),
 		);
 	}
-	it("collapses untouched phases to a one-line summary while expanding the active phase", async () => {
+	it("collapses untouched phases while expanding the phase just changed", async () => {
 		const result = await buildThreePhaseAfterDone();
 		const component = todoToolRenderer.renderResult(result, { expanded: false, isPartial: false }, theme, {
 			op: "done",
 			task: "a1",
 		});
 		const rendered = Bun.stripANSI(component.render(100).join("\n"));
-		// Active phase's collapsed viewport keeps the just-closed task as the lead
-		// row and shows the promoted current one (#5873), and its header carries
-		// progress so the phase being worked on is not the one phase with no
-		// completion signal.
+		// The touched phase's collapsed viewport keeps the just-closed task as
+		// context and shows the next pending item.
 		expect(rendered).toContain("a1");
 		expect(rendered).toContain("a2");
 		expect(rendered).toContain("I. Alpha  1/2");
@@ -694,10 +761,10 @@ describe("todoToolRenderer.renderResult phase collapsing", () => {
 		expect(strikeSpan(0)).toBe("");
 		expect(strikeSpan(TODO_STRIKE_TOTAL_FRAMES)).toBe("a1");
 	});
-	it("falls back to in_progress / completed signals when call args are unavailable", async () => {
+	it("uses completion transitions when call args are unavailable", async () => {
 		const result = await buildThreePhaseAfterDone();
-		// Transcript rebuilds may not carry call args; the active (Alpha) phase is
-		// still derived from the in_progress task and the completion transition.
+		// Transcript rebuilds may not carry call args; the completion transition
+		// still identifies Alpha without inferring an in-progress task.
 		const component = todoToolRenderer.renderResult(result, { expanded: false, isPartial: false }, theme);
 		const rendered = Bun.stripANSI(component.render(100).join("\n"));
 		expect(rendered).toContain("a2");

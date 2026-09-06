@@ -66,4 +66,37 @@ describe("AgentSession todo blocker clone", () => {
 		const open = roundTripped[0]?.tasks.find(task => task.content === "b");
 		expect(open?.blocker).toBeUndefined();
 	});
+
+	it("publishes and persists monotonic snapshots while rejecting stale hydration", () => {
+		const events: Array<{ revision: number; content: string }> = [];
+		session.subscribe(event => {
+			if (event.type !== "todo_updated") return;
+			events.push({ revision: event.revision, content: event.phases[0]?.tasks[0]?.content ?? "" });
+		});
+
+		session.setTodoPhases([{ name: "Work", tasks: [{ content: "first", status: "pending" }] }]);
+		session.setTodoPhases([{ name: "Work", tasks: [{ content: "second", status: "in_progress" }] }]);
+
+		expect(session.getTodoRevision()).toBe(2);
+		expect(events).toEqual([
+			{ revision: 1, content: "first" },
+			{ revision: 2, content: "second" },
+		]);
+		const snapshots = sessionManager
+			.getBranch()
+			.flatMap(entry => (entry.type === "custom" && entry.customType === "user_todo_edit" ? [entry.data] : []));
+		expect(snapshots).toEqual([
+			{ phases: [{ name: "Work", tasks: [{ content: "first", status: "pending" }] }], revision: 1 },
+			{ phases: [{ name: "Work", tasks: [{ content: "second", status: "in_progress" }] }], revision: 2 },
+		]);
+
+		expect(session.hydrateTodoPhases(session.getTodoPhases(), 2)).toBe(false);
+
+		expect(session.hydrateTodoPhases([{ name: "Work", tasks: [{ content: "stale", status: "pending" }] }], 1)).toBe(
+			false,
+		);
+		expect(session.getTodoPhases()[0]?.tasks[0]?.content).toBe("second");
+		expect(sessionManager.getBranch().filter(entry => entry.type === "custom")).toHaveLength(2);
+		expect(events).toHaveLength(2);
+	});
 });

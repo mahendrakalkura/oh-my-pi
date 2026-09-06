@@ -33,6 +33,7 @@ import { CollabSocket } from "@oh-my-pi/pi-coding-agent/collab/relay-client";
 import {
 	MAX_REPLICATED_PAYLOAD_BYTES,
 	shrinkForReplication,
+	shrinkTodoPhasesForReplication,
 } from "@oh-my-pi/pi-coding-agent/collab/replication-shrink";
 import type { InteractiveModeContext } from "@oh-my-pi/pi-coding-agent/modes/types";
 import type { SessionEntry } from "@oh-my-pi/pi-coding-agent/session/session-entries";
@@ -330,5 +331,34 @@ describe("shrinkForReplication (#3740 review)", () => {
 		expect(shrunk.toolCallId).toBe("call-1");
 		expect(shrunk.toolName).toBe("read");
 		expect(JSON.stringify(shrunk).length).toBeLessThanOrEqual(MAX_REPLICATED_PAYLOAD_BYTES);
+	});
+
+	it("measures the encrypted wire payload in UTF-8 bytes", () => {
+		const payload = { content: "😀".repeat(MAX_REPLICATED_PAYLOAD_BYTES / 2) };
+		const shrunk = shrinkForReplication(payload);
+		expect(Buffer.byteLength(JSON.stringify(shrunk))).toBeLessThanOrEqual(MAX_REPLICATED_PAYLOAD_BYTES);
+		expect(shrunk).not.toBe(payload);
+	});
+
+	it("keeps oversized todo snapshots schema-valid", () => {
+		const phases = [
+			{
+				name: "Work",
+				tasks: Array.from({ length: 100_000 }, (_, index) => ({
+					blocker: "approval ".repeat(20),
+					content: `task-${index}`,
+					status: "blocked" as const,
+				})),
+			},
+		];
+		const shrunk = shrinkTodoPhasesForReplication(phases);
+		expect(Buffer.byteLength(JSON.stringify(shrunk))).toBeLessThanOrEqual(MAX_REPLICATED_PAYLOAD_BYTES);
+		expect(shrunk.length).toBeGreaterThan(0);
+		expect(shrunk.every(phase => phase.tasks.every(task => typeof task === "object"))).toBe(true);
+		expect(shrunk[0]?.tasks[0]).toEqual({
+			blocker: "approval ".repeat(20),
+			content: "task-0",
+			status: "blocked",
+		});
 	});
 });

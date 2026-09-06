@@ -276,12 +276,7 @@ export function mapAgentSessionEventToAcpSessionUpdates(
 			if (locations.length > 0) {
 				update.locations = locations;
 			}
-			const notifications = [toSessionNotification(sessionId, update)];
-			const planUpdate = mapTodoResultToPlanUpdate(event);
-			if (planUpdate) {
-				notifications.push(toSessionNotification(sessionId, planUpdate));
-			}
-			return notifications;
+			return [toSessionNotification(sessionId, update)];
 		}
 		case "todo_reminder": {
 			const entries = event.todos.map(todo => ({
@@ -291,6 +286,17 @@ export function mapAgentSessionEventToAcpSessionUpdates(
 			}));
 			return [toSessionNotification(sessionId, { sessionUpdate: "plan", entries })];
 		}
+		case "todo_updated":
+			return [
+				toSessionNotification(sessionId, {
+					sessionUpdate: "plan",
+					entries: extractTodoEntries(event.phases).map(todo => ({
+						content: todo.content,
+						priority: "medium" as const,
+						status: mapTodoStatus(todo.status),
+					})),
+				}),
+			];
 		case "todo_auto_clear":
 			return [toSessionNotification(sessionId, { sessionUpdate: "plan", entries: [] })];
 		default:
@@ -413,37 +419,6 @@ const todoStatusMap: Record<TodoStatus, "pending" | "in_progress" | "completed">
 
 function mapTodoStatus(status: TodoStatus): "pending" | "in_progress" | "completed" {
 	return todoStatusMap[status];
-}
-
-function mapTodoResultToPlanUpdate(
-	event: Extract<AgentSessionEvent, { type: "tool_execution_end" }>,
-): SessionUpdate | undefined {
-	if (event.toolName !== "todo" || event.isError) {
-		return undefined;
-	}
-	const phases = extractTodoPhases(event.result);
-	if (!Array.isArray(phases)) {
-		return undefined;
-	}
-	return {
-		sessionUpdate: "plan",
-		entries: extractTodoEntries(phases).map(todo => ({
-			content: todo.content,
-			priority: "medium" as const,
-			status: mapTodoStatus(todo.status),
-		})),
-	};
-}
-
-function extractTodoPhases(result: unknown): unknown {
-	if (typeof result !== "object" || result === null || !("details" in result)) {
-		return undefined;
-	}
-	const details = (result as { details?: unknown }).details;
-	if (typeof details !== "object" || details === null || !("phases" in details)) {
-		return undefined;
-	}
-	return (details as { phases?: unknown }).phases;
 }
 
 function extractTodoEntries(phases: unknown[]): Array<{ content: string; status: TodoStatus }> {

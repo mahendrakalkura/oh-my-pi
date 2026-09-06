@@ -103,9 +103,9 @@ export class SessionFocusController {
 				assistantStreamSynced = true;
 			} else if (event.type === "message_update" && event.message.role === "assistant" && !assistantStreamSynced) {
 				assistantStreamSynced = true;
-				await this.ctx.eventController.handleEvent({ type: "message_start", message: event.message });
+				await this.ctx.eventController.handleEvent({ type: "message_start", message: event.message }, target);
 			}
-			await this.ctx.eventController.handleEvent(event);
+			await this.ctx.eventController.handleEvent(event, target);
 		});
 		// Events emitted while another session was focused had no TUI listener,
 		// but their message_end handlers still persist authoritative transcript
@@ -123,7 +123,7 @@ export class SessionFocusController {
 		// each target's latest snapshot after rebuilding so focus navigation does
 		// not collapse a live task board back to its bare call arguments (#10446).
 		for (const event of target.activeToolExecutionUpdates()) {
-			await this.ctx.eventController.handleEvent(event);
+			await this.ctx.eventController.handleEvent(event, target);
 			if (generation !== this.#attachGeneration) return false;
 		}
 		// Retarget the sticky Todo HUD too. While a subagent is focused the main

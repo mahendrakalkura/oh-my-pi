@@ -1,21 +1,21 @@
 **Tasks: verbatim content strings, NEVER auto-generated IDs; no "task-1"/"task-N". Pass content in `task`.**
 
-After each successful state-changing op: if nothing is `in_progress`, the earliest `pending` task (phase order) auto-promotes to `in_progress`; if several are `in_progress`, only the earliest stays. Blocked tasks NEVER auto-promote—`unblock` first. Out-of-order completion may move pointer back to an earlier phase—expected; completed tasks NEVER revert.
+Only `start` creates `in_progress`. `init`/`append` create `pending`; `done`/`drop`/`block` leave no implicit successor. Starting a task demotes any prior `in_progress` task to `pending`. Blocked tasks require `unblock` before `start`.
 
 ## Operations
 
-|`op`|Fields|Effect|
-|---|---|---|
-|`init`|`list: [{phase, items: string[]}]`|Initialize full list; replaces existing|
-|`init`|`items: string[]`|Flattened single-phase init|
-|`start`|`task`|Mark in progress|
-|`done`|`task` or `phase`|Mark completed|
-|`drop`|`task` or `phase`|Mark abandoned|
-|`block`|`task` or `phase`; optional `reason`|Mark blocked: awaiting external input; never auto-promotes; excluded from stop-time incomplete-todo reminder|
-|`unblock`|`task` or `phase`|Blocked task → `pending`|
-|`rm`|optional `task` or `phase`|Remove task/phase; omit both → clear|
-|`append`|`phase`; `items: string[]`|Append tasks to phase; lazily creates phase|
-|`view`|—|Read-only; echo list|
+| `op`      | Fields                               | Effect                                                                                                       |
+| --------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `init`    | `list: [{phase, items: string[]}]`   | Initialize full list; replaces existing                                                                      |
+| `init`    | `items: string[]`                    | Flattened single-phase init                                                                                  |
+| `start`   | `task`                               | Mark in progress                                                                                             |
+| `done`    | `task` or `phase`                    | Mark completed                                                                                               |
+| `drop`    | `task` or `phase`                    | Mark abandoned                                                                                               |
+| `block`   | `task` or `phase`; optional `reason` | Mark blocked: awaiting external input; never auto-promotes; excluded from stop-time incomplete-todo reminder |
+| `unblock` | `task` or `phase`                    | Blocked task → `pending`                                                                                     |
+| `rm`      | optional `task` or `phase`           | Remove task/phase; omit both → clear                                                                         |
+| `append`  | `phase`; `items: string[]`           | Append tasks to phase; lazily creates phase                                                                  |
+| `view`    | —                                    | Read-only; echo list                                                                                         |
 
 ## Anatomy
 
@@ -24,9 +24,11 @@ After each successful state-changing op: if nothing is `in_progress`, the earlie
 
 ## Rules
 
-- Mark tasks done immediately after finishing; complete phases in order.
-- NEVER make a todo call the turn's only tool call. Batch with real work: `init` with first reads/edits; each `done`/`start` with next action. Solo todo turns waste a round trip.
-- Waiting on something you can't act on—a user decision, another agent, external service: `block` task (optional `reason`); remains tracked but avoids stop reminder. Blocking the active task hands `in_progress` to the next `pending` task, never back to the blocked one. `unblock` when actionable. If blocker agent-actionable, `append` an unblocking task instead.
+- Latest user direction MUST outrank conflicting prior todos; reconcile the list before work.
+- MUST `start` a task before work; MUST `done` immediately after observable completion.
+- Open actionable todos forbid completion claims. Continue until closed.
+- NEVER make a todo call the turn's only tool call. Pair state changes with real work in the same turn.
+- User decision, another agent, or external service required? `block` with optional `reason`; all remaining work blocked/waiting permits yield. Agent-actionable blocker? `append` the unblocking work instead.
 - Keep introduced `task`/`phase` strings stable.
 - Lost exact task text: `view` echoes list; NEVER guess from memory.
 

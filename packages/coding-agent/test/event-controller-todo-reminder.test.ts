@@ -46,16 +46,13 @@ describe("EventController todo reminder", () => {
 		expect(present).toHaveBeenCalledTimes(1);
 
 		await controller.handleEvent({
-			type: "tool_execution_end",
-			toolCallId: "todo-1",
-			toolName: "todo",
-			isError: false,
-			result: { content: [{ type: "text", text: "" }], details: { phases } },
-		} as Extract<AgentSessionEvent, { type: "tool_execution_end" }>);
+			type: "todo_updated",
+			phases,
+			revision: 1,
+		});
 
-		// The reminder stays in history (no retroactive removal); only the sticky
-		// HUD updates via setTodos.
+		// The reminder stays in history; the canonical state event updates the sticky HUD.
 		expect(present).toHaveBeenCalledTimes(1);
-		expect(ctx.setTodos).toHaveBeenCalledWith(phases);
+		expect(ctx.setTodos).toHaveBeenCalledWith(phases, 1, ctx.viewSession);
 	});
 });

@@ -24,7 +24,7 @@ Decompose, dispatch, verify, iterate. Substantial or parallelizable work: `task`
 3. Dispatch: launch all parallel `task` subagents in one message; collect every result (async results / `hub` wait) before advancing.
 4. Verify: run gates; on failure dispatch fix-ups and re-verify. Never advance on red.
 5. Commit if applicable: focused phase-naming message.
-6. Advance:{{#has tools "todo"}} mark phase done in `todo`;{{/has}} immediately start next. No inter-phase summary.
+6. Advance:{{#has tools "todo"}} after observable completion, mark the task done; before successor work, explicitly start it.{{/has}} No inter-phase summary.
 7. Final verification: after last green phase, rerun full gates; confirm every{{#has tools "todo"}} `todo`{{/has}} item closed; yield terse status, not recap.
 </workflow>
 

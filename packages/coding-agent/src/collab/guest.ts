@@ -524,7 +524,7 @@ export class CollabGuestLink {
 				break;
 			case "state": {
 				this.state = frame.state;
-				this.#applyHostState(frame.state);
+				if (this.#applyHostState(frame.state)) void this.#ctx.reloadTodos();
 				setSessionTerminalTitle(frame.state.sessionName, frame.state.cwd);
 				this.#updateStatusSegment();
 				reconcileGuestSnapshotHostState(this.#ctx, frame.state.isStreaming);
@@ -571,6 +571,9 @@ export class CollabGuestLink {
 	}
 
 	#applyEvent(event: AgentSessionEvent): void {
+		if (event.type === "todo_updated") {
+			if (!this.#ctx.session.hydrateTodoPhases(event.phases, event.revision)) return;
+		}
 		// Orphan-delta guard: when joining mid-turn the message_start for the
 		// in-flight assistant message predates the snapshot. message_update
 		// carries the full accumulating message, so synthesize the missing start
@@ -595,7 +598,7 @@ export class CollabGuestLink {
 	 * Pure agent-state mutation: session.setModel/setThinkingLevel would
 	 * persist entries and clamp to local credentials.
 	 */
-	#applyHostState(state: CollabSessionState): void {
+	#applyHostState(state: CollabSessionState): boolean {
 		const session = this.#ctx.session;
 		if (
 			state.model &&
@@ -607,6 +610,10 @@ export class CollabGuestLink {
 		const level = state.thinkingLevel as ThinkingLevel | undefined;
 		session.agent.setThinkingLevel(toReasoningEffort(level));
 		session.agent.setDisableReasoning(shouldDisableReasoning(level));
+		if (state.todoPhases && state.todoRevision !== undefined) {
+			return session.hydrateTodoPhases?.(state.todoPhases, state.todoRevision) ?? false;
+		}
+		return false;
 	}
 
 	/** Diff a host agent snapshot into the local registry (refs keep `session: null`). */

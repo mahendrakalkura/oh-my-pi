@@ -328,6 +328,7 @@ describe("RpcInputDispatcher", () => {
 						messageCount: 0,
 						queuedMessageCount: 0,
 						todoPhases: [],
+						todoRevision: 0,
 					},
 				};
 			}

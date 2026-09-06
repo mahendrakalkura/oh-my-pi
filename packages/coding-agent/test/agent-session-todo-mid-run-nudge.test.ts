@@ -226,13 +226,9 @@ describe("AgentSession mid-run todo reconciliation nudge", () => {
 		const nudge = nudges[0];
 		// Hidden from the TUI/transcript, visible to the model only.
 		expect(nudge?.display).toBe(false);
+		// The aside carries no per-task enumeration and emits no public event.
 		const text = typeof nudge?.content === "string" ? nudge.content : "";
-		expect(text).toContain("<system-reminder>");
-		expect(text).toContain("3 todo items");
-		// Gentle hint, not the stop-time escalation ladder: no per-task
-		// enumeration, no attempt counter.
 		expect(text).not.toContain("Sweep call sites");
-		expect(text).not.toMatch(/reminder \d\/\d/i);
 
 		// SEPARATE concept from the stop-time reminder: no todo_reminder event,
 		// so nothing renders a TodoReminderComponent or reaches extensions.
@@ -265,6 +261,23 @@ describe("AgentSession mid-run todo reconciliation nudge", () => {
 			fired += (await drainNudges()).length;
 		}
 		expect(fired).toBe(MAX_PER_CYCLE);
+		expect(reminderEvents).toEqual([]);
+	});
+
+	it("does not nudge when every task is blocked or settled", async () => {
+		session.setTodoPhases([
+			{
+				name: "Waiting",
+				tasks: [
+					{ content: "Need approval", status: "blocked" },
+					{ content: "Done", status: "completed" },
+					{ content: "Dropped", status: "abandoned" },
+				],
+			},
+		]);
+		for (let i = 0; i < THRESHOLD; i++) emitToolResult("edit");
+
+		expect(await drainNudges()).toEqual([]);
 		expect(reminderEvents).toEqual([]);
 	});
 

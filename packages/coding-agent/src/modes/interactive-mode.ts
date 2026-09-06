@@ -609,6 +609,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	#nextAppearanceRequestToken = 1;
 	#appearanceRefreshRequest: { token: TerminalAppearanceRequestToken; deadline: number } | undefined;
 	todoPhases: TodoPhase[] = [];
+	#todoRevision = 0;
 	/**
 	 * Session that owns the plan currently in {@link todoPhases}. Subagent
 	 * reconciliation persists to this session, not blindly to `viewSession`,
@@ -2474,17 +2475,9 @@ export class InteractiveMode implements InteractiveModeContext {
 			}),
 		}));
 		if (!mutated) return;
-		// Persist into the session that owns the snapshot we derived `next` from,
-		// not `viewSession`: the two diverge mid focus-attach, and writing to the
-		// destination there would clobber its canonical plan. Leaving the owner
-		// bound (rather than routing through `setTodos`, which rebinds it to
-		// `viewSession`) keeps a follow-up reconcile in the same window correct.
 		const owner = this.#todoPhasesOwner ?? this.session;
-		owner.setTodoPhases(next);
-		this.todoPhases = next;
-		this.#syncTodoAutoClearTimer();
-		this.#renderTodoList();
-		this.ui.requestRender();
+		const revision = owner.setTodoPhases(next);
+		this.setTodos(next, revision, owner);
 	}
 
 	#cancelTodoAutoClearTimer(): void {
@@ -2521,12 +2514,16 @@ export class InteractiveMode implements InteractiveModeContext {
 		if (!Number.isFinite(delaySeconds) || delaySeconds < 0 || !this.#isTodoListSettled(this.todoPhases)) return;
 		if (delaySeconds === 0) {
 			this.todoPhases = [];
+			this.#todoPhasesOwner = undefined;
 			return;
 		}
 
+		const owner = this.#todoPhasesOwner;
 		this.#todoAutoClearTimer = setTimeout(() => {
 			this.#todoAutoClearTimer = undefined;
+			if (this.#todoPhasesOwner !== owner) return;
 			this.todoPhases = [];
+			this.#todoPhasesOwner = undefined;
 			this.#renderTodoList();
 			this.ui.requestRender();
 		}, delaySeconds * 1000);
@@ -2806,6 +2803,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	async #loadTodoList(source: AgentSession = this.session): Promise<void> {
 		this.todoPhases = source.getTodoPhases();
+		this.#todoRevision = source.getTodoRevision();
 		this.#todoPhasesOwner = source;
 		this.#syncTodoAutoClearTimer();
 		this.#renderTodoList();
@@ -5939,7 +5937,13 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.ui.requestRender();
 	}
 
-	setTodos(todos: TodoItem[] | TodoPhase[]): void {
+	setTodos(
+		todos: TodoItem[] | TodoPhase[],
+		revision = this.viewSession.getTodoRevision(),
+		source = this.viewSession,
+	): void {
+		if (source !== this.viewSession && source !== this.#todoPhasesOwner) return;
+		if (source === this.#todoPhasesOwner && revision < this.#todoRevision) return;
 		if (todos.length > 0 && "tasks" in todos[0]) {
 			this.todoPhases = todos as TodoPhase[];
 		} else {
@@ -5950,7 +5954,8 @@ export class InteractiveMode implements InteractiveModeContext {
 				},
 			];
 		}
-		this.#todoPhasesOwner = this.viewSession;
+		this.#todoRevision = revision;
+		this.#todoPhasesOwner = source;
 		this.#syncTodoAutoClearTimer();
 		this.#renderTodoList();
 		this.ui.requestRender();

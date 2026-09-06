@@ -44,7 +44,7 @@ import {
 	parseCollabLink,
 } from "./protocol";
 import { CollabSocket } from "./relay-client";
-import { shrinkForReplication } from "./replication-shrink";
+import { shrinkForReplication, shrinkTodoPhasesForReplication } from "./replication-shrink";
 
 /** Events that change the footer state guests render. */
 const STATE_TRIGGER_EVENTS: Record<string, true> = {
@@ -56,6 +56,7 @@ const STATE_TRIGGER_EVENTS: Record<string, true> = {
 	model_changed: true,
 	advisor_cost_changed: true,
 	auto_compaction_end: true,
+	todo_updated: true,
 };
 
 const STATE_DEBOUNCE_MS = 100;
@@ -73,6 +74,7 @@ const WIRE_AGENT_EVENT_TYPES: Record<WireAgentEvent["type"], true> = {
 	tool_execution_start: true,
 	tool_execution_update: true,
 	tool_execution_end: true,
+	todo_updated: true,
 	notice: true,
 	auto_compaction_start: true,
 	auto_compaction_end: true,
@@ -269,7 +271,13 @@ export class CollabHost {
 		}
 
 		this.#unsubscribe = this.#ctx.session.subscribe(event => {
-			if (isWireAgentEvent(event)) this.#broadcast({ t: "event", event: shrinkForReplication(event) });
+			if (isWireAgentEvent(event)) {
+				const replicated =
+					event.type === "todo_updated"
+						? { ...event, phases: shrinkTodoPhasesForReplication(event.phases) }
+						: shrinkForReplication(event);
+				this.#broadcast({ t: "event", event: replicated });
+			}
 			this.#onEventForState(event);
 		});
 		// Subagent frames publish on the session tree's observability bus at
@@ -537,6 +545,8 @@ export class CollabHost {
 			isStreaming: session.isStreaming,
 			isAborting: session.isAborting,
 			queuedMessageCount: session.queuedMessageCount,
+			todoPhases: shrinkTodoPhasesForReplication(session.getTodoPhases?.() ?? []),
+			todoRevision: session.getTodoRevision?.() ?? 0,
 			sessionName: session.sessionName,
 			cwd: this.#ctx.sessionManager.getCwd(),
 			model: session.model,

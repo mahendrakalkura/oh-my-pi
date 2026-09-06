@@ -114,6 +114,7 @@ export interface RpcSessionState {
 	messageCount: number;
 	queuedMessageCount: number;
 	todoPhases: TodoPhase[];
+	todoRevision: number;
 	/** For session dump / export (plain-text parity with /dump). */
 	systemPrompt?: string[];
 	dumpTools?: Array<{ name: string; description: string; parameters: unknown; examples?: readonly ToolExample[] }>;
@@ -227,7 +228,13 @@ export type RpcResponse =
 			success: true;
 			data: { commands: RpcAvailableSlashCommand[] };
 	  }
-	| { id?: string; type: "response"; command: "set_todos"; success: true; data: { todoPhases: TodoPhase[] } }
+	| {
+			id?: string;
+			type: "response";
+			command: "set_todos";
+			success: true;
+			data: { todoPhases: TodoPhase[]; todoRevision: number };
+	  }
 	| { id?: string; type: "response"; command: "set_host_tools"; success: true; data: { toolNames: string[] } }
 	| { id?: string; type: "response"; command: "set_host_uri_schemes"; success: true; data: { schemes: string[] } }
 	| {

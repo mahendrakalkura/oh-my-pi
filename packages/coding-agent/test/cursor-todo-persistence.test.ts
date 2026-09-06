@@ -29,18 +29,19 @@ function newHarness(initial: TodoPhase[] = []): Harness {
 	const entries: SessionEntry[] = [];
 	const events: AgentEvent[] = [];
 	let phases = initial;
+	let revision = 0;
 	const handlers = new CursorExecHandlers({
 		cwd: "/tmp",
 		tools: new Map(),
 		getTodoPhases: () => phases,
+		getTodoRevision: () => revision,
 		setTodoPhases: next => {
 			phases = next;
-		},
-		persistTodoPhases: next => {
+			revision++;
 			entries.push({
 				type: "custom",
 				customType: USER_TODO_EDIT_CUSTOM_TYPE,
-				data: { phases: next },
+				data: { phases: next, revision },
 			} as SessionEntry);
 		},
 		emitEvent: event => {
@@ -176,13 +177,6 @@ describe("cursor todo persistence", () => {
 		const handlers = new CursorExecHandlers({
 			cwd: "/tmp",
 			tools: new Map(),
-			persistTodoPhases: next => {
-				entries.push({
-					type: "custom",
-					customType: USER_TODO_EDIT_CUSTOM_TYPE,
-					data: { phases: next },
-				} as SessionEntry);
-			},
 		});
 
 		handlers.todoSync({ merged: false, todos: [{ content: "a", status: "pending" }] }, "call-1");

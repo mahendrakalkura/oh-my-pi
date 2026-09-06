@@ -23,9 +23,9 @@ import {
 import { TtsrNotificationComponent } from "../../modes/components/ttsr-notification";
 import { createUsageRowBlock, turnElapsedMs } from "../../modes/components/usage-row";
 import { getSymbolTheme, theme } from "../../modes/theme/theme";
-import type { InteractiveModeContext, TodoPhase } from "../../modes/types";
+import type { InteractiveModeContext } from "../../modes/types";
 import idleRecapPrompt from "../../prompts/system/recap-user.md" with { type: "text" };
-import type { AgentSessionEvent } from "../../session/agent-session";
+import type { AgentSession, AgentSessionEvent } from "../../session/agent-session";
 import {
 	isSilentAbort,
 	isUserInvokedSkillPrompt,
@@ -277,6 +277,7 @@ export class EventController {
 			retry_fallback_succeeded: e => this.#handleRetryFallbackSucceeded(e),
 			ttsr_triggered: e => this.#handleTtsrTriggered(e),
 			todo_reminder: e => this.#handleTodoReminder(e),
+			todo_updated: e => this.#handleTodoUpdated(e, this.ctx.viewSession),
 			todo_auto_clear: e => this.#handleTodoAutoClear(e),
 			irc_message: e => this.#handleIrcMessage(e),
 			notice: e => this.#handleNotice(e),
@@ -601,7 +602,7 @@ export class EventController {
 			}
 			await this.#runSerialized(async () => {
 				await this.#flushPendingMessageUpdate();
-				await this.handleEvent(event);
+				await this.handleEvent(event, this.ctx.session);
 			});
 		});
 	}
@@ -758,7 +759,7 @@ export class EventController {
 		this.#toolArgsReveal.stop();
 	}
 
-	async handleEvent(event: AgentSessionEvent): Promise<void> {
+	async handleEvent(event: AgentSessionEvent, source = this.ctx.viewSession): Promise<void> {
 		if (!this.ctx.isInitialized) {
 			await this.ctx.init();
 		}
@@ -770,6 +771,10 @@ export class EventController {
 		// is awaiting, then the handler's own final requestRender schedules a
 		// second identical frame. Removing it lets the render cadence follow real
 		// state changes rather than event volume (issue #4353).
+		if (event.type === "todo_updated") {
+			await this.#handleTodoUpdated(event, source);
+			return;
+		}
 		const run = this.#handlers[event.type] as (e: AgentSessionEvent) => Promise<void>;
 		await run(event);
 	}
@@ -1824,13 +1829,7 @@ export class EventController {
 			}
 		}
 		if (syntheticFailureCard) this.#syntheticFailureCards.set(event.toolCallId, syntheticFailureCard);
-		// Update todo display when todo tool completes
-		if (event.toolName === "todo" && !event.isError) {
-			const details = event.result.details as { phases?: TodoPhase[] } | undefined;
-			if (details?.phases) {
-				this.ctx.setTodos(details.phases);
-			}
-		} else if (event.toolName === "todo" && event.isError) {
+		if (event.toolName === "todo" && event.isError) {
 			const textContent = event.result.content.find(
 				(content: { type: string; text?: string }) => content.type === "text",
 			)?.text;
@@ -2269,6 +2268,21 @@ export class EventController {
 	async #handleTodoReminder(event: Extract<AgentSessionEvent, { type: "todo_reminder" }>): Promise<void> {
 		const component = new TodoReminderComponent(event.todos, event.attempt, event.maxAttempts);
 		this.ctx.present(component);
+	}
+
+	async #handleTodoUpdated(
+		event: Extract<AgentSessionEvent, { type: "todo_updated" }>,
+		source: AgentSession,
+	): Promise<void> {
+		const currentRevision = source.getTodoRevision();
+		if (event.revision < currentRevision) return;
+		if (source === this.ctx.viewSession) {
+			const component = this.#displaceableTodoComponent;
+			if (component?.isDisplaceableBlock()) {
+				component.updateResult({ content: [], details: { phases: event.phases, revision: event.revision } }, false);
+			}
+		}
+		this.ctx.setTodos(event.phases, event.revision, source);
 	}
 	async #handleTodoAutoClear(_event: Extract<AgentSessionEvent, { type: "todo_auto_clear" }>): Promise<void> {
 		await this.ctx.reloadTodos();

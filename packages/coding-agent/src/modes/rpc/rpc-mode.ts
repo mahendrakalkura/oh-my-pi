@@ -1204,6 +1204,7 @@ export async function runRpcMode(
 					autoCompactionEnabled: session.autoCompactionEnabled,
 					queuedMessageCount: session.queuedMessageCount,
 					todoPhases: session.getTodoPhases(),
+					todoRevision: session.getTodoRevision(),
 					fastModeEnabled: session.isFastModeEnabled(),
 					tokensPerSecond: calculateTokensPerSecond(session.messages, session.isStreaming),
 					fastModeActive: session.isFastModeActive(),
@@ -1236,8 +1237,8 @@ export async function runRpcMode(
 			}
 
 			case "set_todos": {
-				session.setTodoPhases(command.phases);
-				return success(id, "set_todos", { todoPhases: session.getTodoPhases() });
+				const todoRevision = session.setTodoPhases(command.phases);
+				return success(id, "set_todos", { todoPhases: session.getTodoPhases(), todoRevision });
 			}
 
 			case "set_host_tools": {

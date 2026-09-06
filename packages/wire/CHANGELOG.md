@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added revisioned todo snapshots to collaboration state and live agent events.
+
 ## [16.3.0] - 2026-07-02
 
 ### Breaking Changes

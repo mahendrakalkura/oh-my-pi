@@ -162,8 +162,8 @@ describe("EventController + Cursor todo bridge", () => {
 		// held completion — not left pending.
 		expect(f.blocks).toHaveLength(1);
 		expect(f.ctx.pendingTools.size).toBe(0);
-		// The mirror still ran: settling must not cost the panel refresh.
-		expect(f.ctx.setTodos).toHaveBeenCalledWith(phases);
+		// Canonical todo_updated owns panel refresh; tool completion only settles its card.
+		expect(f.ctx.setTodos).not.toHaveBeenCalled();
 	});
 
 	it("settles a fast eval completion that outruns its streamed block", async () => {
@@ -213,14 +213,33 @@ describe("EventController + Cursor todo bridge", () => {
 		expect(f.showWarning).toHaveBeenCalledTimes(1);
 	});
 
-	it("refreshes the panel exactly once when a successful completion is replayed", async () => {
+	it("does not refresh the panel while replaying a successful completion", async () => {
 		const f = createFixture();
 		const phases = [{ name: "Tasks", tasks: [{ content: "step one", status: "completed" }] }];
 
 		await f.controller.handleEvent(todoEnd("cursor-call-1", phases));
 		await f.controller.handleEvent(streamedTodoBlock("cursor-call-1"));
 
-		expect(f.ctx.setTodos).toHaveBeenCalledTimes(1);
+		expect(f.ctx.setTodos).not.toHaveBeenCalled();
+	});
+
+	it("refreshes the panel from the canonical todo update", async () => {
+		const f = createFixture();
+		const phases = [{ name: "Tasks", tasks: [{ content: "step one", status: "completed" as const }] }];
+
+		await f.controller.handleEvent({ type: "todo_updated", phases, revision: 1 });
+
+		expect(f.ctx.setTodos).toHaveBeenCalledWith(phases, 1, f.ctx.viewSession);
+	});
+
+	it("ignores a canonical todo update older than the session snapshot", async () => {
+		const f = createFixture();
+		vi.spyOn(f.ctx.viewSession, "getTodoRevision").mockReturnValue(2);
+		const phases = [{ name: "Tasks", tasks: [{ content: "stale", status: "pending" as const }] }];
+
+		await f.controller.handleEvent({ type: "todo_updated", phases, revision: 1 });
+
+		expect(f.ctx.setTodos).not.toHaveBeenCalled();
 	});
 
 	it("does not recreate the card on later cumulative stream updates", async () => {
@@ -253,6 +272,6 @@ describe("EventController + Cursor todo bridge", () => {
 
 		expect(f.blocks).toHaveLength(1);
 		expect(f.ctx.pendingTools.size).toBe(0);
-		expect(f.ctx.setTodos).toHaveBeenCalledWith(phases);
+		expect(f.ctx.setTodos).not.toHaveBeenCalled();
 	});
 });

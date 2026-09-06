@@ -378,7 +378,7 @@ export interface InteractiveModeContext {
 	syncRunningSubagentBadge(): void;
 	updateEditorBorderColor(): void;
 	rebuildChatFromMessages(options?: { reuseSettledComponents?: boolean }): void;
-	setTodos(todos: TodoItem[] | TodoPhase[]): void;
+	setTodos(todos: TodoItem[] | TodoPhase[], revision?: number, source?: AgentSession): void;
 	reloadTodos(source?: AgentSession): Promise<void>;
 	toggleTodoExpansion(): void;
 

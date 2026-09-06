@@ -1,3 +1,5 @@
+import type { TodoPhase } from "@oh-my-pi/pi-wire";
+
 /**
  * Hard-cap helper for host→guest collab frames.
  *
@@ -102,11 +104,48 @@ function shrinkWalk(value: unknown, stringCap: number, arrayLimit: number): unkn
  * other small metadata pass through untouched.
  */
 export function shrinkForReplication<T>(value: T): T {
-	if (JSON.stringify(value).length <= MAX_REPLICATED_PAYLOAD_BYTES) return value;
+	if (Buffer.byteLength(JSON.stringify(value)) <= MAX_REPLICATED_PAYLOAD_BYTES) return value;
 	let shrunk: unknown = value;
 	for (const pass of SHRINK_PASSES) {
 		shrunk = shrinkWalk(value, pass.stringCap, pass.arrayLimit);
-		if (JSON.stringify(shrunk).length <= MAX_REPLICATED_PAYLOAD_BYTES) return shrunk as T;
+		if (Buffer.byteLength(JSON.stringify(shrunk)) <= MAX_REPLICATED_PAYLOAD_BYTES) return shrunk as T;
 	}
 	return shrunk as T;
+}
+
+/** Shrink todo snapshots without allowing generic array elision markers to escape onto the typed wire. */
+export function shrinkTodoPhasesForReplication(phases: TodoPhase[]): TodoPhase[] {
+	const shrunk = shrinkForReplication<unknown>(phases);
+	if (shrunk === phases) return phases;
+	if (!Array.isArray(shrunk)) return [];
+
+	const normalized: TodoPhase[] = [];
+	for (const phaseValue of shrunk) {
+		if (!phaseValue || typeof phaseValue !== "object") continue;
+		const phase = phaseValue as Record<string, unknown>;
+		if (typeof phase.name !== "string" || !Array.isArray(phase.tasks)) continue;
+
+		const tasks: TodoPhase["tasks"] = [];
+		for (const taskValue of phase.tasks) {
+			if (!taskValue || typeof taskValue !== "object") continue;
+			const task = taskValue as Record<string, unknown>;
+			if (typeof task.content !== "string") continue;
+			if (
+				task.status !== "abandoned" &&
+				task.status !== "blocked" &&
+				task.status !== "completed" &&
+				task.status !== "in_progress" &&
+				task.status !== "pending"
+			) {
+				continue;
+			}
+			tasks.push({
+				...(typeof task.blocker === "string" ? { blocker: task.blocker } : {}),
+				content: task.content,
+				status: task.status,
+			});
+		}
+		normalized.push({ name: phase.name, tasks });
+	}
+	return normalized;
 }

@@ -5,6 +5,7 @@ import type { Settings } from "../config/settings";
 import eagerTaskPrompt from "../prompts/system/eager-task.md" with { type: "text" };
 import eagerTodoPrompt from "../prompts/system/eager-todo.md" with { type: "text" };
 import midRunTodoNudgePrompt from "../prompts/system/mid-run-todo-nudge.md" with { type: "text" };
+import postCompactionTodoContextPrompt from "../prompts/system/post-compaction-todo-context.md" with { type: "text" };
 import { getLatestTodoPhasesFromEntries, isTodoPhase, type TodoItem, type TodoPhase } from "../tools/todo";
 import { buildNamedToolChoice } from "../utils/tool-choice";
 import type { AgentSessionEvent } from "./agent-session-events";
@@ -67,7 +68,6 @@ export class TodoTracker {
 	readonly #host: TodoTrackerHost;
 	#phases: TodoPhase[] = [];
 	#reminderCount = 0;
-	#reminderAwaitingProgress = false;
 	#mutationsSinceLastTouch = 0;
 	#midRunNudgeCount = 0;
 
@@ -80,9 +80,10 @@ export class TodoTracker {
 		return this.#clonePhases(this.#phases);
 	}
 
-	/** Replaces todo phases with a defensive clone. */
+	/** Replaces todo phases with a defensive clone and resets stale-work bookkeeping. */
 	setPhases(phases: TodoPhase[]): void {
 		this.#phases = this.#clonePhases(phases);
+		this.#mutationsSinceLastTouch = 0;
 	}
 
 	/** Rehydrates todo phases from the current transcript branch. */
@@ -98,7 +99,6 @@ export class TodoTracker {
 	/** Resets per-prompt reminder and mutation budgets. */
 	resetCycle(): void {
 		this.#reminderCount = 0;
-		this.#reminderAwaitingProgress = false;
 		this.#mutationsSinceLastTouch = 0;
 		this.#midRunNudgeCount = 0;
 	}
@@ -110,7 +110,6 @@ export class TodoTracker {
 		} else if (!isError && MUTATING_TOOLS[toolName]) {
 			this.#mutationsSinceLastTouch++;
 		}
-		this.#reminderAwaitingProgress = false;
 	}
 
 	/** Detects whether a successful todo result came from an init operation. */
@@ -190,11 +189,34 @@ export class TodoTracker {
 		};
 	}
 
-	/** Builds reminder-only eager preludes after compaction. */
+	/** Re-injects actionable todo state and eager reminders after compaction. */
 	buildPostCompactionEagerNudges(): AgentMessage[] {
 		const nudges: AgentMessage[] = [];
-		const todo = this.createEagerTodoPrelude(undefined);
-		if (todo) nudges.push(todo.message);
+		const phases = this.#phases
+			.map(phase => ({
+				name: phase.name,
+				tasks: phase.tasks.filter(task => task.status === "pending" || task.status === "in_progress"),
+			}))
+			.filter(phase => phase.tasks.length > 0);
+		if (phases.length > 0) {
+			const activeToolNames = this.#host.getActiveToolNames();
+			nudges.push({
+				role: "custom",
+				customType: "post-compaction-todo-context",
+				content: prompt.render(postCompactionTodoContextPrompt, {
+					canCallTodo: activeToolNames.includes("todo"),
+					open: phases.reduce((count, phase) => count + phase.tasks.length, 0),
+					phases,
+					toolRefs: this.#buildEagerPreludeContext().toolRefs,
+				}),
+				display: false,
+				attribution: "agent",
+				timestamp: Date.now(),
+			});
+		} else {
+			const todo = this.createEagerTodoPrelude(undefined);
+			if (todo) nudges.push(todo.message);
+		}
 		const task = this.createEagerTaskPrelude(undefined);
 		if (task) nudges.push(task);
 		return nudges;
@@ -204,15 +226,8 @@ export class TodoTracker {
 	async checkCompletion(message: AssistantMessage): Promise<boolean> {
 		if (this.#host.consumeLastServedToolChoiceLabel() === "user-force") return false;
 		if (this.#host.planModeEnabled()) return false;
-		if (this.#reminderAwaitingProgress) {
-			logger.debug("Todo completion: prior reminder still awaiting agent action; staying silent", {
-				attempt: this.#reminderCount,
-			});
-			return false;
-		}
 		if (!this.#host.settings.get("todo.reminders") || !this.#host.settings.get("todo.enabled")) {
 			this.#reminderCount = 0;
-			this.#reminderAwaitingProgress = false;
 			return false;
 		}
 		const remindersMax = this.#host.settings.get("todo.remindersMax");
@@ -223,7 +238,6 @@ export class TodoTracker {
 		const phases = this.phases;
 		if (phases.length === 0) {
 			this.#reminderCount = 0;
-			this.#reminderAwaitingProgress = false;
 			return false;
 		}
 		const incompleteByPhase = phases
@@ -240,7 +254,6 @@ export class TodoTracker {
 		const incomplete = incompleteByPhase.flatMap(phase => phase.tasks);
 		if (incomplete.length === 0) {
 			this.#reminderCount = 0;
-			this.#reminderAwaitingProgress = false;
 			return false;
 		}
 		if (isAwaitingUserAnswer(message)) {
@@ -282,7 +295,6 @@ export class TodoTracker {
 			timestamp: Date.now(),
 		};
 		this.#mutationsSinceLastTouch = 0;
-		this.#reminderAwaitingProgress = true;
 		this.#host.agent.appendMessage(reminderMessage);
 		this.#host.sessionManager.appendMessage(reminderMessage);
 		this.#host.scheduleAgentContinue({

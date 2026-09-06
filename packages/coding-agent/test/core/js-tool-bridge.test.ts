@@ -680,9 +680,7 @@ describe("callSessionTool", () => {
 		);
 
 		expect(result).not.toEqual(expect.objectContaining({ hasError: true }));
-		expect(phases).toEqual([
-			{ name: "Recovered", tasks: [{ content: "From malformed JSON", status: "in_progress" }] },
-		]);
+		expect(phases).toEqual([{ name: "Recovered", tasks: [{ content: "From malformed JSON", status: "pending" }] }]);
 	});
 
 	it("returns structured tool results when details or images are present", async () => {

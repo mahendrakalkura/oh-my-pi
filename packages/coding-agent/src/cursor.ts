@@ -104,11 +104,7 @@ interface CursorExecBridgeOptions {
 	 */
 	setTodoPhases?: (phases: TodoPhase[]) => void;
 	getTodoPhases?: () => TodoPhase[];
-	/**
-	 * Persist the mirrored list to the session branch so it survives reloads.
-	 * Cursor emits no local `todo` toolResult, so nothing else records it.
-	 */
-	persistTodoPhases?: (phases: TodoPhase[]) => void;
+	getTodoRevision?: () => number;
 	/**
 	 * Build a `grep` tool honoring a frame's own context width and match cap.
 	 *
@@ -420,6 +416,7 @@ function formatTodoSyncSummary(phases: TodoPhase[]): string {
 function buildTodoSyncResult(
 	toolCallId: string,
 	phases: TodoPhase[] | undefined,
+	revision: number | undefined,
 	error: string | null,
 ): ToolResultMessage {
 	return {
@@ -429,7 +426,7 @@ function buildTodoSyncResult(
 		content: [
 			{ type: "text", text: error ?? (phases ? formatTodoSyncSummary(phases) : "Todo snapshot not mirrored") },
 		],
-		details: phases ? { phases, storage: "session" } : undefined,
+		details: phases ? { phases, revision, storage: "session" } : undefined,
 		isError: error !== null,
 		timestamp: Date.now(),
 	};
@@ -902,11 +899,15 @@ export class CursorExecHandlers implements ICursorExecHandlers {
 			}
 			for (const [name, tasks] of grouped) next.push({ name, tasks });
 			setPhases(next);
-			this.options.persistTodoPhases?.(next);
 			phases = next;
 		}
 
-		const result = buildTodoSyncResult(toolCallId, phases, error);
+		const result = buildTodoSyncResult(
+			toolCallId,
+			phases,
+			phases ? this.options.getTodoRevision?.() : undefined,
+			error,
+		);
 		// This completion is emitted synchronously mid-parse, while the streamed
 		// `toolcall_start` that creates the visible card rides
 		// `AssistantMessageEventStream` and lands a microtask later. When Cursor

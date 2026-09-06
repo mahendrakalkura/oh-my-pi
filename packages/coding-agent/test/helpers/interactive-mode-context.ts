@@ -113,6 +113,7 @@ export function createSessionStub(
 		getEvalPreludes: () => [],
 		getEnabledToolNames: () => [],
 		getContextUsage: () => undefined,
+		getTodoRevision: () => 0,
 		getGoalModeState: () => undefined,
 		refreshMCPTools: vi.fn(async () => {}),
 		setMCPPromptCommands: vi.fn(),

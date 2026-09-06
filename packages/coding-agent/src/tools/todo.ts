@@ -60,6 +60,8 @@ export interface TodoToolDetails {
 	phases: TodoPhase[];
 	storage: "session" | "memory";
 	completedTasks?: TodoCompletionTransition[];
+	/** Canonical todo state revision; absent when the session does not expose revisions. */
+	revision?: number;
 }
 
 // =============================================================================
@@ -144,20 +146,10 @@ function getCompletionTransitions(previous: TodoPhase[], updated: TodoPhase[]): 
 }
 
 function normalizeInProgressTask(phases: TodoPhase[]): void {
-	const orderedTasks = phases.flatMap(phase => phase.tasks);
-	if (orderedTasks.length === 0) return;
-
-	const inProgressTasks = orderedTasks.filter(task => task.status === "in_progress");
-	if (inProgressTasks.length > 1) {
-		for (const task of inProgressTasks.slice(1)) {
-			task.status = "pending";
-		}
+	const inProgressTasks = phases.flatMap(phase => phase.tasks).filter(task => task.status === "in_progress");
+	for (const task of inProgressTasks.slice(1)) {
+		task.status = "pending";
 	}
-
-	if (inProgressTasks.length > 0) return;
-
-	const firstPendingTask = orderedTasks.find(task => task.status === "pending");
-	if (firstPendingTask) firstPendingTask.status = "in_progress";
 }
 
 /** Return the active todo task, preferring an in-progress item over the first pending item. */
@@ -174,27 +166,74 @@ export function nextActionableTask(phases: readonly TodoPhase[]): TodoItem | und
 
 export const USER_TODO_EDIT_CUSTOM_TYPE = "user_todo_edit";
 
-export function getLatestTodoPhasesFromEntries(entries: SessionEntry[]): TodoPhase[] {
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type === "custom" && entry.customType === USER_TODO_EDIT_CUSTOM_TYPE) {
-			const data = entry.data as { phases?: unknown } | undefined;
-			if (data && Array.isArray(data.phases)) {
-				return clonePhases(data.phases as TodoPhase[]);
-			}
+export interface TodoStateSnapshot {
+	phases: TodoPhase[];
+	revision: number;
+}
+
+interface PersistedTodoCandidate extends TodoStateSnapshot {
+	canonical: boolean;
+	index: number;
+	versioned: boolean;
+}
+
+function persistedTodoCandidate(entry: SessionEntry, index: number): PersistedTodoCandidate | undefined {
+	let data: { phases?: unknown; revision?: unknown } | undefined;
+	let canonical = false;
+	if (entry.type === "custom" && entry.customType === USER_TODO_EDIT_CUSTOM_TYPE) {
+		data = entry.data as { phases?: unknown; revision?: unknown } | undefined;
+		canonical = true;
+	} else if (entry.type === "message") {
+		const message = entry.message as { role?: string; toolName?: string; details?: unknown; isError?: boolean };
+		if (message.role !== "toolResult" || message.toolName !== "todo" || message.isError) return undefined;
+		data = message.details as { phases?: unknown; revision?: unknown } | undefined;
+	} else {
+		return undefined;
+	}
+	if (!data || !Array.isArray(data.phases) || !data.phases.every(isTodoPhase)) return undefined;
+	const versioned = Number.isInteger(data.revision) && (data.revision as number) >= 0;
+	return {
+		phases: clonePhases(data.phases),
+		revision: versioned ? (data.revision as number) : 0,
+		canonical,
+		index,
+		versioned,
+	};
+}
+
+/**
+ * Recover the canonical todo snapshot from a transcript branch. Versioned
+ * snapshots outrank legacy unversioned entries; greatest revision wins, with
+ * canonical user edits preferred over direct tool results at the same revision.
+ */
+export function getLatestTodoStateFromEntries(entries: SessionEntry[]): TodoStateSnapshot {
+	let bestVersioned: PersistedTodoCandidate | undefined;
+	let latestLegacy: PersistedTodoCandidate | undefined;
+	for (let index = 0; index < entries.length; index++) {
+		const candidate = persistedTodoCandidate(entries[index], index);
+		if (!candidate) continue;
+		if (!candidate.versioned) {
+			latestLegacy = candidate;
 			continue;
 		}
-		if (entry.type !== "message") continue;
-		const message = entry.message as { role?: string; toolName?: string; details?: unknown; isError?: boolean };
-		if (message.role !== "toolResult" || message.toolName !== "todo" || message.isError) continue;
-
-		const details = message.details as { phases?: unknown } | undefined;
-		if (!details || !Array.isArray(details.phases)) continue;
-
-		return clonePhases(details.phases as TodoPhase[]);
+		if (
+			!bestVersioned ||
+			candidate.revision > bestVersioned.revision ||
+			(candidate.revision === bestVersioned.revision &&
+				((candidate.canonical && !bestVersioned.canonical) ||
+					(candidate.canonical === bestVersioned.canonical && candidate.index > bestVersioned.index)))
+		) {
+			bestVersioned = candidate;
+		}
 	}
+	const selected = bestVersioned ?? latestLegacy;
+	return selected
+		? { phases: clonePhases(selected.phases), revision: selected.revision }
+		: { phases: [], revision: 0 };
+}
 
-	return [];
+export function getLatestTodoPhasesFromEntries(entries: SessionEntry[]): TodoPhase[] {
+	return getLatestTodoStateFromEntries(entries).phases;
 }
 
 /** Minimum overlap (after normalization) required for a substring match.
@@ -489,6 +528,14 @@ function applyEntry(phases: TodoPhase[], entry: TodoOpEntryValue, errors: string
 		case "start": {
 			const hit = resolveTaskOrError(phases, entry.task, errors);
 			if (!hit) return phases;
+			if (hit.task.status === "blocked") {
+				errors.push(`Task "${hit.task.content}" is blocked; unblock it before starting`);
+				return phases;
+			}
+			if (hit.task.status === "completed" || hit.task.status === "abandoned") {
+				errors.push(`Task "${hit.task.content}" is already settled and cannot be started`);
+				return phases;
+			}
 			for (const phase of phases) {
 				for (const candidate of phase.tasks) {
 					if (candidate.status === "in_progress" && candidate !== hit.task) {
@@ -752,11 +799,7 @@ function formatSummary(phases: TodoPhase[], errors: string[], readOnly = false):
 	// Closed = completed + abandoned, mirroring the per-phase `done` count.
 	const closedAll = tasks.filter(task => task.status === "completed" || task.status === "abandoned").length;
 	const blockedAll = tasks.filter(task => task.status === "blocked").length;
-	// The active phase is the EARLIEST one still holding open work, so the
-	// in-progress pointer can sit in a phase whose successors already have
-	// completed tasks. Detect that "worked ahead" case to explain the
-	// otherwise-surprising backward pointer instead of letting it read as a
-	// completed task reverting to pending.
+	// The current phase is the earliest one still holding actionable work.
 	const workedAhead = phases.some(
 		(phase, idx) =>
 			idx > currentIdx && phase.tasks.some(task => task.status === "completed" || task.status === "abandoned"),
@@ -765,10 +808,8 @@ function formatSummary(phases: TodoPhase[], errors: string[], readOnly = false):
 		`Overall: ${closedAll}/${tasks.length} done, ${remainingTasks.length} open${blockedAll > 0 ? `, ${blockedAll} blocked` : ""}.`,
 	);
 	lines.push(
-		`Active phase ${currentIdx + 1}/${phases.length} "${current.name}" (${done}/${current.tasks.length})${
-			workedAhead
-				? " — earliest phase with open tasks; the in-progress pointer auto-advances to the earliest open task on each completion, so it can sit behind out-of-order work (nothing was un-completed)."
-				: "."
+		`Current phase ${currentIdx + 1}/${phases.length} "${current.name}" (${done}/${current.tasks.length})${
+			workedAhead ? " — earliest phase with open tasks; completed tasks remain closed." : "."
 		}`,
 	);
 	for (const phase of phases) {
@@ -889,6 +930,10 @@ export class TodoTool implements AgentTool<typeof todoSchema, TodoToolDetails> {
 		const completedTasks = readOnly || failed ? [] : getCompletionTransitions(previousPhases, updated);
 		if (!readOnly && !failed) this.session.setTodoPhases?.(updated);
 		const details: TodoToolDetails = { op, phases: effective, storage };
+		if (!failed) {
+			const revision = this.session.getTodoRevision?.();
+			if (revision !== undefined) details.revision = revision;
+		}
 		if (completedTasks.length > 0) details.completedTasks = completedTasks;
 
 		return {
@@ -1051,7 +1096,7 @@ function formatTodoLine(
 }
 
 /**
- * Phases the latest update touched, plus the active (in_progress) phase.
+ * Phases the latest update touched, plus the explicitly in-progress phase.
  * Returns `null` when there is no usable signal, meaning "render every phase
  * fully" — this preserves the legacy view and the manual-expand path.
  */
@@ -1061,8 +1106,6 @@ function computeTouchedPhases(
 	completedTasks: TodoCompletionTransition[],
 ): Set<string> | null {
 	const touched = new Set<string>();
-	// The phase holding the in_progress task is where attention sits after the
-	// auto-promotion that follows every completion.
 	for (const phase of phases) {
 		if (phase.tasks.some(task => task.status === "in_progress")) touched.add(phase.name);
 	}

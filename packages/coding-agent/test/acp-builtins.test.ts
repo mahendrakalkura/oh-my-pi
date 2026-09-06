@@ -23,6 +23,7 @@ interface FakeAcpBuiltinSession {
 	sessionId: string;
 	sessionName: string;
 	_todoPhases: Array<{ name: string; tasks: Array<{ content: string; status: string }> }>;
+	_todoRevision: number;
 	_switchedTo: string | undefined;
 	_movedFromEmptySessionFile: string | undefined;
 	toggleFastMode(): boolean;
@@ -50,7 +51,8 @@ interface FakeAcpBuiltinSession {
 	setSlashCommands(commands: unknown[]): void;
 	refreshSkills(): Promise<void>;
 	getTodoPhases(): Array<{ name: string; tasks: Array<{ content: string; status: string }> }>;
-	setTodoPhases(phases: Array<{ name: string; tasks: Array<{ content: string; status: string }> }>): void;
+	getTodoRevision(): number;
+	setTodoPhases(phases: Array<{ name: string; tasks: Array<{ content: string; status: string }> }>): number;
 	refreshBaseSystemPrompt(): Promise<void>;
 	getToolByName(name: string): unknown;
 	compact(args?: string): Promise<void>;
@@ -78,6 +80,7 @@ function createRuntime() {
 		sessionId: "fake-session-id",
 		sessionName: "Fake Session",
 		_todoPhases: [],
+		_todoRevision: 0,
 		_switchedTo: undefined,
 		_movedFromEmptySessionFile: undefined,
 		dispose: async () => {},
@@ -135,8 +138,14 @@ function createRuntime() {
 		getTodoPhases() {
 			return this._todoPhases;
 		},
+		getTodoRevision() {
+			return this._todoRevision;
+		},
 		setTodoPhases(phases) {
 			this._todoPhases = phases;
+			this._todoRevision++;
+			fakeSessionManager.appendCustomEntry("user_todo_edit", { phases, revision: this._todoRevision });
+			return this._todoRevision;
 		},
 		async refreshBaseSystemPrompt() {},
 		getAsyncJobSnapshot: () => null,
@@ -780,7 +789,7 @@ describe("wave 3 commands", () => {
 			expect(result).toEqual({ consumed: true });
 			expect(output[0]).toBe(`Imported 1 phase(s), 1 task(s) from ${target}.`);
 			expect(session._todoPhases).toEqual([
-				{ name: "Default", tasks: [{ content: "From cwd", status: "in_progress" }] },
+				{ name: "Default", tasks: [{ content: "From cwd", status: "pending" }] },
 			]);
 		} finally {
 			await removeWithRetries(tempRoot);
