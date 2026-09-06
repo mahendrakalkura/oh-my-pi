@@ -52,7 +52,7 @@ function messageEntry(id: string, message: WireMessage): SessionEntry {
 	return { type: "message", id, parentId: null, timestamp: "2026-06-12T00:00:01Z", message };
 }
 
-function welcomeFrame(entryCount = 0, readOnly?: boolean): HostFrame {
+function welcomeFrame(entryCount = 0, readOnly?: boolean): Extract<HostFrame, { t: "welcome" }> {
 	return { t: "welcome", proto: COLLAB_PROTO, header: HEADER, state: STATE, agents: AGENTS, entryCount, readOnly };
 }
 
@@ -84,6 +84,33 @@ describe("GuestClient frame apply", () => {
 		expect(snap.working).toBe(false);
 		expect(snap.stream).toBeNull();
 		expect(snap.activeTools.size).toBe(0);
+	});
+
+	it("applies only newer canonical todo snapshots", () => {
+		const original = [{ name: "Work", tasks: [{ content: "original", status: "pending" as const }] }];
+		const client = new GuestClient(LINK, "tester");
+		client.applyFrameForTest({
+			...welcomeFrame(),
+			state: { ...STATE, todoPhases: original, todoRevision: 2 },
+		});
+
+		client.applyFrameForTest({
+			t: "event",
+			event: {
+				type: "todo_updated",
+				phases: [{ name: "Work", tasks: [{ content: "stale", status: "completed" }] }],
+				revision: 1,
+			},
+		});
+		expect(client.getSnapshot().state?.todoPhases).toEqual(original);
+
+		const updated = [{ name: "Work", tasks: [{ content: "updated", status: "in_progress" as const }] }];
+		client.applyFrameForTest({
+			t: "event",
+			event: { type: "todo_updated", phases: updated, revision: 3 },
+		});
+		expect(client.getSnapshot().state?.todoPhases).toEqual(updated);
+		expect(client.getSnapshot().state?.todoRevision).toBe(3);
 	});
 
 	it("welcome readOnly flag lands in the snapshot", () => {

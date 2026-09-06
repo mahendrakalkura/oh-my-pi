@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Collaboration guests now show the host's live todo board, including completion progress and blocked reasons.
+
 ## [18.1.3] - 2026-09-02
 
 ### Fixed

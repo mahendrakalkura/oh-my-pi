@@ -112,6 +112,16 @@ function buildState(): SessionState {
 					: null,
 		},
 		participants,
+		todoPhases: [
+			{
+				name: "Mock session",
+				tasks: [
+					{ content: "Inspect the live transcript", status: "completed" },
+					{ content: "Verify guest todo synchronization", status: "in_progress" },
+				],
+			},
+		],
+		todoRevision: 1,
 	};
 }
 

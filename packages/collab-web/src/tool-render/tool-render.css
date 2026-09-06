@@ -480,6 +480,11 @@
 	color: var(--tv-faint);
 }
 
+.tv-task--blocked .tv-task-icon,
+.tv-task-blocker {
+	color: var(--tv-warn);
+}
+
 .tv-task--completed {
 	color: var(--tv-faint);
 }

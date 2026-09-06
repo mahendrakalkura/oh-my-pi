@@ -449,6 +449,11 @@ export class GuestClient {
 				this.#activeTools = next;
 				break;
 			}
+			case "todo_updated":
+				if (this.#state && event.revision > (this.#state.todoRevision ?? 0)) {
+					this.#state = { ...this.#state, todoPhases: event.phases, todoRevision: event.revision };
+				}
+				break;
 			case "agent_start":
 				this.#working = true;
 				break;

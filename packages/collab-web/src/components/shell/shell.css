@@ -45,6 +45,30 @@
 	min-height: 0;
 }
 
+.sh-transcript > .sh-todo {
+	flex: 0 0 auto;
+	margin: 8px 8px 0;
+	overflow: hidden;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--bg);
+}
+
+.sh-todo-summary {
+	padding: 6px 10px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	user-select: none;
+}
+
+.sh-todo-body {
+	max-height: 30vh;
+	padding: 0 10px 8px;
+	overflow-y: auto;
+}
+
 .sh-rail {
 	width: 300px;
 	flex: none;
@@ -132,7 +156,10 @@
 	background: var(--bg-raised);
 	color: var(--fg-muted);
 	cursor: pointer;
-	transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+	transition:
+		color 0.14s ease,
+		background 0.14s ease,
+		border-color 0.14s ease;
 }
 
 .sh-theme-toggle:hover {

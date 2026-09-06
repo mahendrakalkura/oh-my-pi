@@ -1,15 +1,17 @@
 /** `todo` — phased task-list ops and the resulting board. */
+import type { TodoPhase } from "@oh-my-pi/pi-wire";
 import type { ReactNode } from "react";
 import { Badges, ResultText, Row } from "../parts";
 import type { ToolRenderer, ToolRenderProps } from "../types";
 import { detailsRecord, isRecord, normalizeWs, str, truncate } from "../util";
 
-type TaskStatus = "pending" | "in_progress" | "completed" | "abandoned";
+type TaskStatus = "abandoned" | "blocked" | "completed" | "in_progress" | "pending";
 
 const TASK_ICONS: Record<TaskStatus, string> = {
+	abandoned: "✕",
+	blocked: "!",
 	completed: "✓",
 	in_progress: "→",
-	abandoned: "✕",
 	pending: "○",
 };
 
@@ -108,27 +110,23 @@ function opRow(entry: unknown, key: number): ReactNode {
 	);
 }
 
-function Board({ phases }: { phases: unknown[] }): ReactNode {
+export function Board({ phases }: { phases: readonly TodoPhase[] }): ReactNode {
 	const rendered: ReactNode[] = [];
 	for (let i = 0; i < phases.length; i++) {
 		const phase = phases[i];
-		if (!isRecord(phase)) continue;
 		rendered.push(
 			<div key={`p${i}`} className="tv-todo-phase">
-				{roman(i + 1)}. {str(phase.name) ?? ""}
+				{roman(i + 1)}. {phase.name}
 			</div>,
 		);
-		if (!Array.isArray(phase.tasks)) continue;
 		for (let t = 0; t < phase.tasks.length; t++) {
-			const task: unknown = phase.tasks[t];
-			if (!isRecord(task)) continue;
-			const raw: unknown = task.status;
-			const status: TaskStatus =
-				raw === "completed" || raw === "in_progress" || raw === "abandoned" ? raw : "pending";
+			const task = phase.tasks[t];
+			const status = task.status;
 			rendered.push(
 				<div key={`p${i}t${t}`} className={`tv-task tv-task--${status}`}>
 					<span className="tv-task-icon">{TASK_ICONS[status]}</span>
-					<span>{str(task.content) ?? ""}</span>
+					<span>{task.content}</span>
+					{task.blocker && <span className="tv-task-blocker"> - {task.blocker}</span>}
 				</div>,
 			);
 		}
@@ -140,7 +138,7 @@ function Board({ phases }: { phases: unknown[] }): ReactNode {
 function Body({ args, result }: ToolRenderProps): ReactNode {
 	const ops = toOps(args);
 	const rec = detailsRecord(result);
-	const phases = rec && Array.isArray(rec.phases) && !result?.isError ? rec.phases : null;
+	const phases = rec && Array.isArray(rec.phases) && !result?.isError ? (rec.phases as unknown as TodoPhase[]) : null;
 	return (
 		<>
 			{ops.length > 0 && <div className="tv-list">{ops.map(opRow)}</div>}
