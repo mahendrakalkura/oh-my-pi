@@ -32,18 +32,36 @@ afterEach(async () => {
 });
 
 describe("HistoryStorage scoped recall", () => {
-	it("returns only the active session's prompts when it has any", async () => {
+	it("offers the active session's prompts ahead of the project's", async () => {
 		const { storage } = await freshStorage();
 		await flush(
-			storage.add("prompt from another session", "/repo", "session-old"),
+			storage.add("prompt from an earlier session", "/repo", "session-old"),
 			storage.add("prompt from this session", "/repo", "session-now"),
+			storage.add("prompt in another project", "/elsewhere", "session-old"),
 		);
 		storage.setSessionResolver(() => "session-now");
 
-		expect(storage.getScoped(10, "/repo").map(entry => entry.prompt)).toEqual(["prompt from this session"]);
+		expect(storage.getScoped(10, "/repo").map(entry => entry.prompt)).toEqual([
+			"prompt from this session",
+			"prompt from an earlier session",
+		]);
 	});
 
-	it("falls back to the cwd when the active session has no prompts yet", async () => {
+	it("keeps the project's history when the session persisted only one prompt", async () => {
+		const { storage } = await freshStorage();
+		await flush(
+			storage.add("earlier project prompt", "/repo", "session-old"),
+			storage.add("only prompt this session kept", "/repo", "session-now"),
+		);
+		storage.setSessionResolver(() => "session-now");
+
+		expect(storage.getScoped(10, "/repo").map(entry => entry.prompt)).toEqual([
+			"only prompt this session kept",
+			"earlier project prompt",
+		]);
+	});
+
+	it("offers the project's prompts when the active session has none yet", async () => {
 		const { storage } = await freshStorage();
 		await flush(
 			storage.add("prompt in this project", "/repo", "session-old"),
@@ -54,7 +72,7 @@ describe("HistoryStorage scoped recall", () => {
 		expect(storage.getScoped(10, "/repo").map(entry => entry.prompt)).toEqual(["prompt in this project"]);
 	});
 
-	it("falls back to the cwd when no session is resolvable", async () => {
+	it("offers the project's prompts when no session is resolvable", async () => {
 		const { storage } = await freshStorage();
 		await flush(storage.add("prompt in this project", "/repo", "session-old"));
 
@@ -72,7 +90,7 @@ describe("HistoryStorage scoped recall", () => {
 		expect(storage.getRecent(10)).toHaveLength(1);
 	});
 
-	it("orders both scopes newest first and honours the limit", async () => {
+	it("orders each scope newest first and honours the limit", async () => {
 		const { storage } = await freshStorage();
 		await flush(storage.add("older session prompt", "/repo", "session-now"));
 		vi.advanceTimersByTime(2000);

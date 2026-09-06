@@ -4,25 +4,27 @@ Local patches carried on the `mahendra` branch against upstream `can1357/oh-my-p
 
 Commit hashes below are the ones current at base `18.1.11`. Every rebase onto `origin/main` rewrites them, so treat the subject line as the identifier and refresh the hashes when they drift.
 
-## feat(editor): scope arrow-key recall to session then cwd
+## feat(editor): scope arrow-key recall to session and cwd
 
-Commits `c8036d7b10` and `5550498159`.
+Commits `c8036d7b10`, `5550498159` and the union fix below.
 
-Upstream lists every prompt ever submitted, from every project and every session, because `Editor.setHistoryStorage` loaded `HistoryStorage.getRecent(100)` with no filter. Recall now offers the prompts submitted in the active session, or the ones submitted in the current project when that session has none yet, which is the state of a fresh session. The editor reloads this scope after every interactive session transition and after the first prompt persists, so a new session cannot retain the previous session's in-memory recall list.
+Upstream lists every prompt ever submitted, from every project and every session, because `Editor.setHistoryStorage` loaded `HistoryStorage.getRecent(100)` with no filter. Recall now offers the prompts submitted in the active session first, then the rest of the ones submitted in the current project. The editor reloads this scope after every interactive session transition and after the first prompt persists, so a new session cannot retain the previous session's in-memory recall list.
+
+The first version made the session scope exclusive: any session row at all suppressed the cwd rows. That treats one database read as complete, which it is not. With a corrupt `history_fts` index every INSERT aborted in the `history_ai` trigger while the `ON CONFLICT DO UPDATE` path kept working, so a long session persisted exactly one prompt - a resubmitted `/copy` - and recall collapsed to that single entry. The scopes are unioned now, and no read can shrink recall below the project's history.
 
 Changed:
 
-- `packages/coding-agent/src/session/history-storage.ts`: added `getScoped(limit, cwd?)` plus the `#recentBySessionStmt` and `#recentByCwdStmt` prepared statements, both finalized in `#close()`. `getRecent` is untouched because the Ctrl+R search popup still uses it and stays global.
-- `packages/tui/src/components/editor.ts`: the duck-typed `HistoryStorage` port now declares `getScoped` instead of `getRecent`; `setHistoryStorage` and the public `reloadHistory()` load the active scope, while a completed `add()` reload drops cwd fallback entries after the first session prompt persists.
-- `packages/coding-agent/src/modes/interactive-mode.ts`: `setSessionResolver` moved ahead of `setHistoryStorage`. The scoped load reads the resolver, so the old order made every session take the cwd branch.
+- `packages/coding-agent/src/session/history-storage.ts`: added `getScoped(limit, cwd?)` plus the `#recentBySessionStmt` and `#recentByCwdStmt` prepared statements, both finalized in `#close()`. It concatenates session rows ahead of cwd rows and de-duplicates by row id, which identifies the prompt because `prompt` is UNIQUE. `getRecent` is untouched because the Ctrl+R search popup still uses it and stays global.
+- `packages/tui/src/components/editor.ts`: the duck-typed `HistoryStorage` port now declares `getScoped` instead of `getRecent`; `setHistoryStorage` and the public `reloadHistory()` load the active scope, and a completed `add()` reloads it.
+- `packages/coding-agent/src/modes/interactive-mode.ts`: `setSessionResolver` moved ahead of `setHistoryStorage`. The scoped load reads the resolver, so the old order made every session read the cwd scope alone.
 - `packages/coding-agent/src/modes/controllers/{command-controller,extension-ui-controller,selector-controller}.ts`: successful interactive new-session, resume, branch, and active-session deletion transitions reload editor history.
-- `packages/tui/test/editor.test.ts`: storage fakes use `getScoped`, with regressions for changing scopes and replacing cwd fallback after the first session prompt.
+- `packages/tui/test/editor.test.ts`: storage fakes use `getScoped`, with regressions for changing scopes and for the reload after the first session prompt persists.
 - `packages/coding-agent/test/command-controller-new-session.test.ts` and `packages/coding-agent/test/modes/controllers/resume-preflight.test.ts`: new-session recall and resume-boundary reload regressions.
-- `packages/coding-agent/test/history-storage-scoped.test.ts`: five cases cover session precedence, the cwd fallback, the no-session fallback, the empty result when neither scope matches, and ordering plus limit.
+- `packages/coding-agent/test/history-storage-scoped.test.ts`: six cases cover session-first ordering, the single-persisted-row case that the exclusive rule broke, the fresh-session and no-session cwd scopes, the empty result when neither scope matches, and ordering plus limit.
 
-No schema change. The `session_id` and `cwd` columns already existed and were already populated; only the read path is new. Because `prompt` is globally UNIQUE and the upsert overwrites provenance, a prompt reused in another project moves there and leaves the first project's recall.
+No schema change. The `session_id` and `cwd` columns already existed and were already populated; only the read path is new. Because `prompt` is globally UNIQUE and the upsert overwrites provenance, a prompt reused in another project moves there; the cwd half of the union is what keeps that from emptying a session's recall.
 
-Verified live: in `~/projects/nagi-reddy/mailcrux`, Up recalled that project's newest prompt while the globally newest row, `/copy` with cwd `/tmp`, stayed out of the list.
+Verified against a copy of the damaged database: the exclusive query returned nothing for the affected session while the union returned the project's eight prompts.
 
 ## feat(status-line): add an active profile segment
 

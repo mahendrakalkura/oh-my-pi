@@ -762,8 +762,8 @@ export class Editor implements Component, Focusable {
 
 	/**
 	 * Loads the prompts recallable with the arrow keys and enables persistence.
-	 * The list is scoped by the storage to the active session, falling back to
-	 * this project, so recall never offers prompts from unrelated work.
+	 * The storage scopes the list to the active session and this project, so
+	 * recall never offers prompts from unrelated work.
 	 */
 	setHistoryStorage(storage: HistoryStorage): void {
 		this.#historyStorage = storage;

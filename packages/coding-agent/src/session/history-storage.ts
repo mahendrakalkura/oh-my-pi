@@ -219,9 +219,11 @@ ON CONFLICT(prompt) DO UPDATE SET
 
 	/**
 	 * Returns the prompts recallable from the arrow keys: the ones submitted in
-	 * the active session, or, when that session has none yet, the ones submitted
-	 * in `cwd`. A prompt belongs to wherever it was last submitted, since the
-	 * table keys on the prompt text alone, so recall follows the same rule.
+	 * the active session first, then the rest of the ones submitted in `cwd`.
+	 * Both scopes are offered because either read can be incomplete - a prompt
+	 * belongs to wherever it was last submitted, since the table keys on the
+	 * prompt text alone, so resubmitting a prompt elsewhere moves it out of this
+	 * session - and a session must never lose recall of its project's history.
 	 */
 	getScoped(limit: number, cwd?: string): HistoryEntry[] {
 		const safeLimit = this.#normalizeLimit(limit);
@@ -229,13 +231,21 @@ ON CONFLICT(prompt) DO UPDATE SET
 
 		const session = this.#sessionResolver?.();
 		try {
-			if (session) {
-				const rows = this.#recentBySessionStmt.all(session, safeLimit) as HistoryRow[];
-				if (rows.length > 0) return rows.map(row => this.#toEntry(row));
+			const rows: HistoryRow[] = [];
+			if (session) rows.push(...(this.#recentBySessionStmt.all(session, safeLimit) as HistoryRow[]));
+			if (cwd) rows.push(...(this.#recentByCwdStmt.all(cwd, safeLimit) as HistoryRow[]));
+
+			// `prompt` is UNIQUE, so the row id identifies the prompt text: a row
+			// reached through both scopes keeps its session-scoped position.
+			const seen = new Set<number>();
+			const entries: HistoryEntry[] = [];
+			for (const row of rows) {
+				if (seen.has(row.id)) continue;
+				seen.add(row.id);
+				entries.push(this.#toEntry(row));
+				if (entries.length === safeLimit) break;
 			}
-			if (!cwd) return [];
-			const rows = this.#recentByCwdStmt.all(cwd, safeLimit) as HistoryRow[];
-			return rows.map(row => this.#toEntry(row));
+			return entries;
 		} catch (error) {
 			logger.error("HistoryStorage getScoped failed", { error: String(error) });
 			return [];
