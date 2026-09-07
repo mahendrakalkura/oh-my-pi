@@ -111,6 +111,7 @@ export type SymbolKey =
 	| "icon.intelligence"
 	| "icon.host"
 	| "icon.session"
+	| "icon.account"
 	| "icon.package"
 	| "icon.warning"
 	| "icon.rewind"
@@ -464,6 +465,7 @@ const UNICODE_SYMBOLS: SymbolMap = {
 	"icon.intelligence": "🧠",
 	"icon.host": "🖥",
 	"icon.session": "🆔",
+	"icon.account": "👤",
 	"icon.package": "📦",
 	"icon.warning": "⚠",
 	"icon.rewind": "↶",
@@ -828,6 +830,8 @@ const NERD_SYMBOLS: SymbolMap = {
 	"icon.host": "\uf109",
 	// pick: 󰁑 (nf-md-arrow_left_bold_hexagon_outline) | alt:  
 	"icon.session": "\u{f0051}",
+	// pick: nf-fa-user | alt: nf-fa-user_circle nf-md-account
+	"icon.account": "\uf007",
 	// pick:  | alt: 
 	"icon.package": "\uf487",
 	// pick:  | alt:  
@@ -1172,6 +1176,7 @@ const ASCII_SYMBOLS: SymbolMap = {
 	"icon.input": "in:",
 	"icon.host": "host",
 	"icon.session": "id",
+	"icon.account": "acct",
 	"icon.package": "[P]",
 	"icon.warning": "[!]",
 	"icon.rewind": "<-",

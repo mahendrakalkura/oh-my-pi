@@ -779,6 +779,56 @@ const profileSegment: StatusLineSegment = {
 	},
 };
 
+/** Case-insensitive lookup of a configured tag for one OAuth identity field. */
+function accountTag(tags: Record<string, string> | undefined, key: string | undefined): string | undefined {
+	if (!tags || !key) return undefined;
+	const wanted = key.toLowerCase();
+	for (const [candidate, tag] of Object.entries(tags)) {
+		if (candidate.toLowerCase() === wanted) return tag;
+	}
+	return undefined;
+}
+
+/**
+ * Names the OAuth account serving this session's model provider, for providers
+ * that hold more than one login. The identity is session-sticky: it is the
+ * credential this session resolved on its first request or pinned since, so a
+ * rotation onto another account changes what this renders. Hidden on providers
+ * authenticated by an API key, which carry no OAuth identity.
+ *
+ * `segmentOptions.account.tags` maps an identity to a short label, because
+ * accounts on one provider differ only in a long email whose local parts can be
+ * near-identical. An unmapped identity renders its email rather than nothing.
+ */
+const accountSegment: StatusLineSegment = {
+	id: "account",
+	render(ctx) {
+		const provider = ctx.session?.model?.provider;
+		if (!provider) return { content: "", visible: false };
+
+		const authStorage = ctx.session.modelRegistry?.authStorage;
+		const identity = authStorage?.getOAuthAccountIdentity(provider, ctx.session.sessionId);
+		if (!identity) return { content: "", visible: false };
+
+		const tags = ctx.options.account?.tags;
+		const label =
+			accountTag(tags, identity.email) ??
+			accountTag(tags, identity.accountId) ??
+			identity.email ??
+			identity.accountId ??
+			identity.orgName ??
+			identity.projectId;
+		if (!label) return { content: "", visible: false };
+
+		// Emails and org names come from the provider, so they are sanitized like
+		// any other foreign text before they reach the bar.
+		const display = ctx.startupPlaceholder
+			? STARTUP_PLACEHOLDER
+			: truncateToWidth(sanitizeStatusText(label), TRUNCATE_LENGTHS.SHORT);
+		return { content: withIcon(theme.icon.account, display), visible: true };
+	},
+};
+
 const cacheReadSegment: StatusLineSegment = {
 	id: "cache_read",
 	render(ctx) {
@@ -965,6 +1015,7 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	session: sessionSegment,
 	hostname: hostnameSegment,
 	profile: profileSegment,
+	account: accountSegment,
 	cache_read: cacheReadSegment,
 	cache_write: cacheWriteSegment,
 	cache_hit: cacheHitSegment,

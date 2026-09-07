@@ -259,6 +259,7 @@ export type StatusLineSegmentId =
 	| "session"
 	| "hostname"
 	| "profile"
+	| "account"
 	| "cache_read"
 	| "cache_write"
 	| "cache_hit"

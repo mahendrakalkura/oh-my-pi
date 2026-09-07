@@ -604,6 +604,7 @@ export class Theme {
 			throughput: this.#symbols["icon.throughput"],
 			host: this.#symbols["icon.host"],
 			session: this.#symbols["icon.session"],
+			account: this.#symbols["icon.account"],
 			package: this.#symbols["icon.package"],
 			warning: this.#symbols["icon.warning"],
 			rewind: this.#symbols["icon.rewind"],

@@ -12,6 +12,8 @@ export interface GallerySessionOptions {
 	premiumRequests?: number;
 	advisorCost?: number;
 	goalStatus?: "active" | "paused" | "complete" | "budget-limited" | "dropped";
+	/** Email of the session-sticky OAuth account; `null` renders an API-key provider. */
+	oauthEmail?: string | null;
 }
 
 /** Deterministic session double for production composer/status renderers. */
@@ -36,7 +38,15 @@ export function createGallerySession(options: GallerySessionOptions = {}): Agent
 		isAutoThinking: false,
 		autoResolvedThinkingLevel: () => undefined,
 		isStreaming: false,
-		modelRegistry: { isUsingOAuth: () => options.usingSubscription ?? false },
+		modelRegistry: {
+			isUsingOAuth: () => options.usingSubscription ?? false,
+			authStorage: {
+				getOAuthAccountIdentity: () => {
+					const email = options.oauthEmail === undefined ? "agent@example.com" : options.oauthEmail;
+					return email ? { email } : undefined;
+				},
+			},
+		},
 		settings: {
 			get: (path: string) => path === "goal.statusInFooter",
 			getGroup: () => ({ enabled: true, reserveTokens: 20_000 }),

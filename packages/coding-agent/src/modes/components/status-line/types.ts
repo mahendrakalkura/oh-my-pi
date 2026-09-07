@@ -20,6 +20,12 @@ export interface CollabStatus {
 }
 
 export interface StatusLineSegmentOptions {
+	/**
+	 * `tags` maps an OAuth identity — email, else account id — to the short label
+	 * the `account` segment renders. Keys match case-insensitively; an identity
+	 * with no entry falls back to its email, so an unmapped login is still named.
+	 */
+	account?: { tags?: Record<string, string> };
 	model?: { showThinkingLevel?: boolean };
 	path?: { abbreviate?: boolean; maxLength?: number; stripWorkPrefix?: boolean };
 	git?: { showBranch?: boolean; showStaged?: boolean; showUnstaged?: boolean; showUntracked?: boolean };

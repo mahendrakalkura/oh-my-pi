@@ -250,6 +250,16 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 				{ label: "host active", context: { collab: { role: "host", participantCount: 3 } } },
 				{ label: "guest active", context: { collab: { role: "guest", participantCount: 3 } } },
 			];
+		case "account":
+			return [
+				{
+					label: "tagged account",
+					session: { oauthEmail: "agent@example.com" },
+					context: { options: { account: { tags: { "agent@example.com": "mk" } } } },
+				},
+				{ label: "untagged account", session: { oauthEmail: "agent@example.com" } },
+				{ label: "api key provider", session: { oauthEmail: null } },
+			];
 		default:
 			return [{ label: "canonical" }];
 	}
