@@ -395,16 +395,17 @@ const pathSegment: StatusLineSegment = {
 		const { scratch, relative } = classifyProjectDir(projectDir);
 		const scratchIcon = scratch && stripPrefix ? theme.icon.scratchFolder : theme.icon.folder;
 
-		// `lastDir` keeps only the directory the agent is in, prefixed so the bar
-		// still reads as a path: a fixed `.../oh-my-pi` instead of a leading-edge
-		// truncation of the whole tree, which spent 40 columns to show a home
-		// directory and a forge host that never change. It short-circuits both
-		// decorations below - the worktree label's `project/worktree` and the
-		// nested-repo `↳ suffix` - because either one puts a second name on a bar
-		// that asked for one, and neither is the directory in question.
+		// `lastDir` renders the directory the agent is in and nothing else: a bare
+		// `oh-my-pi` where the full tree spent 40 columns on a home directory and a
+		// forge host that never change. No ellipsis prefix either - it was 4 more
+		// columns saying only that a path was cut. The folder icon already reads as
+		// "this is a directory". It short-circuits both decorations below - the
+		// worktree label's `project/worktree` and the nested-repo `↳ suffix` -
+		// because either one puts a second name on a bar that asked for one, and
+		// neither is the directory in question.
 		if (opts.lastDir) {
 			const leaf = path.basename(getProjectDir());
-			const text = ctx.startupPlaceholder ? STARTUP_PLACEHOLDER : fileHyperlink(getProjectDir(), `.../${leaf}`);
+			const text = ctx.startupPlaceholder ? STARTUP_PLACEHOLDER : fileHyperlink(getProjectDir(), leaf);
 			const icon = ctx.worktree && stripPrefix ? theme.icon.worktree : scratchIcon;
 			return { content: theme.fg("statusLinePath", withIcon(icon, text)), visible: true };
 		}

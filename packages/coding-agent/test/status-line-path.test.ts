@@ -274,7 +274,7 @@ describe("status line path segment", () => {
 			const rendered = renderSegment("path", ctx);
 			const content = Bun.stripANSI(rendered.content);
 			expect(rendered.visible).toBe(true);
-			expect(content).toContain(".../three");
+			expect(content).toBe(`${theme.icon.scratchFolder} three`);
 			// The tree above the current directory is what lastDir exists to drop,
 			// and maxLength must not clip the name it keeps.
 			expect(content).not.toContain("two");
@@ -301,7 +301,7 @@ describe("status line path segment", () => {
 			};
 
 			const content = Bun.stripANSI(renderSegment("path", ctx).content);
-			expect(content).toContain(`.../${path.basename(parentDir)}`);
+			expect(content).toContain(path.basename(parentDir));
 			expect(content).not.toContain("pr-workspace");
 			expect(content).not.toContain("↳");
 		} finally {
@@ -375,7 +375,7 @@ describe("status line path segment in a linked worktree", () => {
 			ctx.options.path = { lastDir: true, stripWorkPrefix: true };
 
 			const content = Bun.stripANSI(renderSegment("path", ctx).content);
-			expect(content).toBe(`${theme.icon.worktree} .../${path.basename(worktreeDir)}`);
+			expect(content).toBe(`${theme.icon.worktree} ${path.basename(worktreeDir)}`);
 			// `project/worktree` is the label lastDir exists to replace.
 			expect(content).not.toContain("pi/");
 		} finally {

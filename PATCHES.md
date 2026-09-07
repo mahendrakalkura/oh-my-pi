@@ -162,12 +162,12 @@ Seconds are back in the first field, which is what the clock format above remove
 
 Commit `681d24244c`.
 
-`path` spent 42 columns on `…epositories/github.com/can1357/oh-my-pi`: a leading-edge truncation of a tree whose home directory and forge host never change. `segmentOptions.path.lastDir` renders `.../oh-my-pi` instead, 14 columns with the icon.
+`path` spent 42 columns on `…epositories/github.com/can1357/oh-my-pi`: a leading-edge truncation of a tree whose home directory and forge host never change. `segmentOptions.path.lastDir` renders a bare `oh-my-pi` instead, 10 columns with the icon. No ellipsis prefix: 4 more columns to say only that a path was cut, when the folder icon already reads as "this is a directory".
 
 Changed:
 
 - `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.path.lastDir`.
-- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `pathSegment` short-circuits on `lastDir` before either decoration, rendering `.../${path.basename(getProjectDir())}` with no `shortenPath` and no `clampPathLength`, so `abbreviate` and `maxLength` no longer apply. It skips the linked-worktree label, which reads `project/worktree`, and the nested-repo `↳ suffix`; both put a second name on a bar that asked for one, and neither is the directory the agent is in. The worktree icon still wins when a worktree is active, and the hyperlink still targets the full directory.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `pathSegment` short-circuits on `lastDir` before either decoration, rendering `path.basename(getProjectDir())` with no `shortenPath` and no `clampPathLength`, so `abbreviate` and `maxLength` no longer apply. It skips the linked-worktree label, which reads `project/worktree`, and the nested-repo `↳ suffix`; both put a second name on a bar that asked for one, and neither is the directory the agent is in. The worktree icon still wins when a worktree is active, and the hyperlink still targets the full directory.
 - `packages/coding-agent/test/status-line-path.test.ts`: three cases - the current directory alone with the tree above it gone and a `maxLength` of 4 not clipping the name, the dropped nested-repo suffix, and the worktree rendering its own directory while keeping the worktree icon.
 
 The status line's overflow handling shrinks `path` first, so this also removes the elastic segment the bar used to absorb a narrow terminal - the trade is a fixed short path instead of a variable-length one.

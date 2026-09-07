@@ -22,7 +22,7 @@
 
 ### Added
 
-- New `statusLine.segmentOptions.path.lastDir` renders the current directory alone as `.../<directory>`, ignoring `abbreviate` and `maxLength`.
+- New `statusLine.segmentOptions.path.lastDir` renders the current directory's name alone, ignoring `abbreviate` and `maxLength`.
 
 ## [18.1.12] - 2026-09-06
 
