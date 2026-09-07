@@ -41,6 +41,25 @@ The glyph is `theme.icon.package`, not `theme.icon.subscription`: the cost segme
 
 Opt in per machine by listing `profile` in `statusLine.leftSegments`, which the dotfiles `config.yml` does.
 
+## feat(status-line): name the account serving a turn
+
+Commit `d9e7f2e219`.
+
+The `anthropic` provider holds three OAuth logins and `openai-codex` holds two. The account is chosen per session by usage ranking, can be pinned, and can rotate mid-session, so nothing outside `omp token <provider> --list` or `/session` said which login was actually serving the turn.
+
+Changed:
+
+- `packages/coding-agent/src/config/settings-schema.ts`: `account` added to the `StatusLineSegmentId` union.
+- `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.account.tags` maps an identity to a short label.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `accountSegment` reads `session.modelRegistry.authStorage.getOAuthAccountIdentity(provider, session.sessionId)` - the session-sticky credential, not the first stored one - and renders the configured tag, else the email, else the account id, org name, or project id. Reports itself invisible when the provider has no OAuth identity, which is what an API-key provider reports. Registered in `SEGMENTS` beside `profile`.
+- `packages/coding-agent/src/modes/theme/symbols.ts`, `packages/coding-agent/src/modes/theme/theme-class.ts`: new `icon.account` glyph in all three symbol presets.
+- `packages/coding-agent/src/cli/gallery-fixtures/preview-session.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: `GallerySessionOptions.oauthEmail` stubs the identity lookup, and the gallery renders the tagged, untagged, and API-key samples.
+- `packages/coding-agent/test/status-line-account.test.ts`: covers the tag mapping, the case-insensitive key match, the email fallback for an unmapped login, both hidden paths, and the startup placeholder.
+
+The tag map is configuration rather than derivation: the three Anthropic emails differ only in their domain and their local parts are near-identical, so any automatic shortening produces three labels that read alike.
+
+Opt in per machine by listing `account` in `statusLine.leftSegments` and mapping `statusLine.segmentOptions.account.tags`, which the dotfiles `config.yml` does.
+
 ## feat(slash-commands): copy the last answer on bare /copy
 
 Commits `bedca39ac2`, `532dde8c89` and `ada7336d72`.
