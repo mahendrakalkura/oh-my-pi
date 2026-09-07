@@ -41,24 +41,24 @@ The glyph is `theme.icon.package`, not `theme.icon.subscription`: the cost segme
 
 Opt in per machine by listing `profile` in `statusLine.leftSegments`, which the dotfiles `config.yml` does.
 
-## feat(status-line): name the account serving a turn
+## feat(status-line): name the provider and client serving a turn
 
-Commit `d9e7f2e219`.
+Commits `d9e7f2e219` and `53edd628d1`.
 
-The `anthropic` provider holds three OAuth logins and `openai-codex` holds two. The account is chosen per session by usage ranking, can be pinned, and can rotate mid-session, so nothing outside `omp token <provider> --list` or `/session` said which login was actually serving the turn.
+Two facts were invisible in the bar: which endpoint serves the turn and which client pays for it. They are carried differently. `anthropic` holds three OAuth logins and `openai-codex` holds two, chosen per session by usage ranking, pinnable, and free to rotate mid-session. The other eight providers are person-suffixed API-key clones with no credential row at all, so `nr-alibaba` fuses both facts into its provider id.
 
 Changed:
 
 - `packages/coding-agent/src/config/settings-schema.ts`: `account` added to the `StatusLineSegmentId` union.
-- `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.account.tags` maps an identity to a short label.
-- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `accountSegment` reads `session.modelRegistry.authStorage.getOAuthAccountIdentity(provider, session.sessionId)` - the session-sticky credential, not the first stored one - and renders the configured tag, else the email, else the account id, org name, or project id. Reports itself invisible when the provider has no OAuth identity, which is what an API-key provider reports. Registered in `SEGMENTS` beside `profile`.
+- `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.account.tags` names the client, keyed by credential email, account id, or provider id.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `accountSegment` reads `session.modelRegistry.authStorage.getOAuthAccountIdentity(provider, session.sessionId)` - the session-sticky credential, not the first stored one - resolves the client from the tag map, else the email, account id, org name, or project id, and renders `<provider>` with the client prefix stripped followed by `theme.sep.dot` and the client. A provider with no client renders its id alone; only an unresolved model hides the segment. Registered in `SEGMENTS` beside `profile`.
 - `packages/coding-agent/src/modes/theme/symbols.ts`, `packages/coding-agent/src/modes/theme/theme-class.ts`: new `icon.account` glyph in all three symbol presets.
-- `packages/coding-agent/src/cli/gallery-fixtures/preview-session.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: `GallerySessionOptions.oauthEmail` stubs the identity lookup, and the gallery renders the tagged, untagged, and API-key samples.
-- `packages/coding-agent/test/status-line-account.test.ts`: covers the tag mapping, the case-insensitive key match, the email fallback for an unmapped login, both hidden paths, and the startup placeholder.
+- `packages/coding-agent/src/cli/gallery-fixtures/preview-session.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: `GallerySessionOptions.oauthEmail` and `provider` stub the lookup, and the gallery renders the OAuth-login, API-key-clone, untagged-login, and untagged-provider samples.
+- `packages/coding-agent/test/status-line-account.test.ts`: covers the OAuth pair, the clone split, case-insensitive keys, the email and account-id fallbacks, the provider-only case, the hidden path, and the startup placeholder.
 
-The tag map is configuration rather than derivation: the three Anthropic emails differ only in their domain and their local parts are near-identical, so any automatic shortening produces three labels that read alike.
+Both parts are configuration rather than derivation. The three anthropic emails differ only in their domain, so automatic shortening yields three labels that read alike, and a provider id prefix is only a client when the tag map says so.
 
-Opt in per machine by listing `account` in `statusLine.leftSegments` and mapping `statusLine.segmentOptions.account.tags`, which the dotfiles `config.yml` does.
+Opt in per machine by listing `account` in `statusLine.leftSegments` and mapping `statusLine.segmentOptions.account.tags`, which the dotfiles `config.yml` does for all five logins and all eight clones.
 
 ## feat(slash-commands): copy the last answer on bare /copy
 
