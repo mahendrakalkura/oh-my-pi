@@ -1,6 +1,6 @@
 /**
  * The `turn` segment carries three time facts in one cell,
- * `0m05s - 3m20s - 17:23:47`: this turn, all turns, and when the last one
+ * `0m05s · 3m20s · 17:23:47`: this turn, all turns, and when the last one
  * ended.
  *
  * Contract:
@@ -140,7 +140,7 @@ describe("turn segment", () => {
 
 	it("renders the turn, the cumulative active time, and the end stamp in that order", () => {
 		const rendered = renderSegment("turn", createCtx(null, 90_000, ENDED_AT, 200_000));
-		expect(Bun.stripANSI(rendered.content)).toContain("1m30s - 3m20s - 09:07:05");
+		expect(Bun.stripANSI(rendered.content)).toContain("1m30s · 3m20s · 09:07:05");
 	});
 
 	it("omits the cumulative field below a second of activity", () => {
@@ -150,7 +150,7 @@ describe("turn segment", () => {
 
 	it("holds the previous end stamp while a new turn runs", () => {
 		const rendered = renderSegment("turn", createCtx(4_000, 92_000, ENDED_AT));
-		expect(Bun.stripANSI(rendered.content)).toContain("0m04s - 09:07:05");
+		expect(Bun.stripANSI(rendered.content)).toContain("0m04s · 09:07:05");
 	});
 
 	it("hides itself when no turn has run and nothing is active", () => {

@@ -17,8 +17,8 @@
 - Fixed GPT-6 Astra requiring `/extended-context` for its full context window: it now keeps the documented 1.05M-token window with the setting on or off, and explicit per-model `contextWindow` overrides still win.
 ### Breaking Changes
 
-- The `provider` status-line segment is gone; `client` now renders `<client> - <provider>` in one cell.
-- The `turn_ended` status-line segment is gone; `turn` now renders `<this turn> - <all turns> - <last turn's end>` in one cell.
+- The `provider` status-line segment is gone; `client` now renders `<client> · <provider>` in one cell.
+- The `turn_ended` status-line segment is gone; `turn` now renders `<this turn> · <all turns> · <last turn's end>` in one cell.
 
 ### Added
 

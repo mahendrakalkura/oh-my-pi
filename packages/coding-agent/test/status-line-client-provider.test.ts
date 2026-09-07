@@ -89,7 +89,7 @@ describe("status line client segment", () => {
 		);
 
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toBe(`${theme.icon.account} mk - anthropic`);
+		expect(rendered.content).toBe(`${theme.icon.account} mk · anthropic`);
 		// The identity is per-session sticky, so the segment must ask about its own
 		// session and its own provider; either argument dropped reports someone else's account.
 		expect(lookup.provider).toBe("anthropic");
@@ -102,7 +102,7 @@ describe("status line client segment", () => {
 			createAccountContext(undefined, {}, "nr-alibaba", { "nr-alibaba": "nr" }),
 		);
 
-		expect(rendered.content).toBe(`${theme.icon.account} nr - alibaba`);
+		expect(rendered.content).toBe(`${theme.icon.account} nr · alibaba`);
 	});
 
 	it("matches tag keys case-insensitively", () => {
@@ -113,7 +113,7 @@ describe("status line client segment", () => {
 			}),
 		);
 
-		expect(rendered.content).toBe(`${theme.icon.account} jg - anthropic`);
+		expect(rendered.content).toBe(`${theme.icon.account} jg · anthropic`);
 	});
 
 	it("names an unmapped login by email rather than hiding it", () => {

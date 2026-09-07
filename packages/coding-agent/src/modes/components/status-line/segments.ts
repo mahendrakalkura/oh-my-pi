@@ -666,7 +666,7 @@ const timeSpentSegment: StatusLineSegment = {
 };
 
 /**
- * The session's three time facts in one cell: `0m05s - 3m20s - 17:23:47` reads
+ * The session's three time facts in one cell: `0m05s · 3m20s · 17:23:47` reads
  * as this turn, all turns, and when the last one ended. The first field is the
  * running turn while the agent works and that turn's duration once it settles,
  * the second is cumulative active time ({@link SegmentContext.activeMs}, the
@@ -699,7 +699,7 @@ const turnSegment: StatusLineSegment = {
 		// whether the first field is still counting, and the brand spinner is a
 		// segment away.
 		const icon = running ? theme.icon.time : theme.icon.rewind;
-		return { content: withIcon(icon, statusValue(ctx, fields.join(" - "))), visible: true };
+		return { content: withIcon(icon, statusValue(ctx, fields.join(" · "))), visible: true };
 	},
 };
 
@@ -837,9 +837,9 @@ function sessionClient(ctx: SegmentContext, provider: string): string | undefine
 
 /**
  * Names the client paying for this session and the endpoint serving it in one
- * cell, `mk - anthropic`. A clone's provider id opens with its own client tag,
+ * cell, `mk · anthropic`. A clone's provider id opens with its own client tag,
  * which the same cell already renders, so the prefix is stripped: `nr-alibaba`
- * beside client `nr` reads `nr - alibaba`. Two facts in one cell rather than two
+ * beside client `nr` reads `nr · alibaba`. Two facts in one cell rather than two
  * segments: they are always read together, and a section separator plus its
  * padding between them cost as much as the shorter of the two values.
  */
@@ -858,7 +858,7 @@ const clientSegment: StatusLineSegment = {
 		const parts = client ? [client, endpoint] : [endpoint];
 		const display = ctx.startupPlaceholder
 			? STARTUP_PLACEHOLDER
-			: parts.map(value => truncateToWidth(sanitizeStatusText(value), TRUNCATE_LENGTHS.SHORT)).join(" - ");
+			: parts.map(value => truncateToWidth(sanitizeStatusText(value), TRUNCATE_LENGTHS.SHORT)).join(" · ");
 		return { content: withIcon(theme.icon.account, display), visible: true };
 	},
 };
