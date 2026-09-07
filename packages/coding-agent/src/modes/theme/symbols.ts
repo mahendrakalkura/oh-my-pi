@@ -112,7 +112,6 @@ export type SymbolKey =
 	| "icon.host"
 	| "icon.session"
 	| "icon.account"
-	| "icon.provider"
 	| "icon.package"
 	| "icon.warning"
 	| "icon.rewind"
@@ -467,7 +466,6 @@ const UNICODE_SYMBOLS: SymbolMap = {
 	"icon.host": "🖥",
 	"icon.session": "🆔",
 	"icon.account": "👤",
-	"icon.provider": "☁",
 	"icon.package": "📦",
 	"icon.warning": "⚠",
 	"icon.rewind": "↶",
@@ -834,8 +832,6 @@ const NERD_SYMBOLS: SymbolMap = {
 	"icon.session": "\u{f0051}",
 	// pick: nf-fa-user | alt: nf-fa-user_circle nf-md-account
 	"icon.account": "\uf007",
-	// pick: nf-fa-cloud | alt: nf-md-cloud_outline nf-fa-server
-	"icon.provider": "\uf0c2",
 	// pick:  | alt: 
 	"icon.package": "\uf487",
 	// pick:  | alt:  
@@ -1181,7 +1177,6 @@ const ASCII_SYMBOLS: SymbolMap = {
 	"icon.host": "host",
 	"icon.session": "id",
 	"icon.account": "acct",
-	"icon.provider": "api",
 	"icon.package": "[P]",
 	"icon.warning": "[!]",
 	"icon.rewind": "<-",

@@ -261,6 +261,29 @@ describe("status line path segment", () => {
 			removeSyncWithRetries(parentDir);
 		}
 	});
+
+	it("renders only the current directory under lastDir, ignoring maxLength", () => {
+		const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-lastdir-"));
+		const deepDir = path.join(parentDir, "one", "two", "three");
+		fs.mkdirSync(deepDir, { recursive: true });
+		try {
+			setProjectDir(deepDir);
+			const ctx = createPathContext();
+			ctx.options.path = { abbreviate: true, lastDir: true, maxLength: 4, stripWorkPrefix: true };
+
+			const rendered = renderSegment("path", ctx);
+			const content = Bun.stripANSI(rendered.content);
+			expect(rendered.visible).toBe(true);
+			expect(content).toContain(".../three");
+			// The tree above the current directory is what lastDir exists to drop,
+			// and maxLength must not clip the name it keeps.
+			expect(content).not.toContain("two");
+			expect(content).not.toContain("…");
+		} finally {
+			setProjectDir(originalProjectDir);
+			removeSyncWithRetries(parentDir);
+		}
+	});
 });
 
 describe("status line path segment in a linked worktree", () => {

@@ -41,24 +41,26 @@ The glyph is `theme.icon.package`, not `theme.icon.subscription`: the cost segme
 
 Opt in per machine by listing `profile` in `statusLine.leftSegments`, which the dotfiles `config.yml` does.
 
-## feat(status-line): name the client and provider serving a turn
+## feat(status-line): name the client and the endpoint in one cell
 
-Commits `1d34035be7`, `cfae63734d` and `7f44764e65`.
+Commits `1d34035be7`, `cfae63734d`, `7f44764e65` and the merge below.
 
 Two facts were invisible in the bar: which client pays for the turn and which endpoint serves it. They are carried differently. `anthropic` holds three OAuth logins and `openai-codex` holds two, chosen per session by usage ranking, pinnable, and free to rotate mid-session. The other eight providers are person-suffixed API-key clones with no credential row at all, so `nr-alibaba` fuses both facts into its provider id.
 
+Both render in the `client` cell as `mk - anthropic`. They started as two segments so either could be dropped independently; that cost a section separator and its padding, 3 columns, to divide two values that are always read together and are 2 and 9 columns wide. The separate `provider` segment is gone.
+
 Changed:
 
-- `packages/coding-agent/src/config/settings-schema.ts`: `client` and `provider` added to the `StatusLineSegmentId` union.
-- `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.account.tags` names the client, keyed by credential email, account id, or provider id, and is read by both segments.
-- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `sessionClient` reads `session.modelRegistry.authStorage.getOAuthAccountIdentity(provider, session.sessionId)` - the session-sticky credential, not the first stored one - and resolves the tag, else the email, account id, org name, or project id. `clientSegment` renders it and hides when nothing identifies a client; `providerSegment` renders the provider id with the client prefix stripped, so a clone does not repeat the tag. Two segment ids, so the bar's section separator falls between them and either can be dropped. Registered in `SEGMENTS` beside `profile`.
-- `packages/coding-agent/src/modes/theme/symbols.ts`, `packages/coding-agent/src/modes/theme/theme-class.ts`: new `icon.account` and `icon.provider` glyphs in all three symbol presets.
-- `packages/coding-agent/src/cli/gallery-fixtures/preview-session.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: `GallerySessionOptions.oauthEmail` and `provider` stub the lookup, and the gallery renders four client samples and three provider samples.
-- `packages/coding-agent/test/status-line-client-provider.test.ts`: covers the OAuth login, the clone lookup, case-insensitive keys, the email and account-id fallbacks, both hidden paths, the startup placeholder, and the provider prefix strip.
+- `packages/coding-agent/src/config/settings-schema.ts`: `client` added to the `StatusLineSegmentId` union.
+- `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.account.tags` names the client, keyed by credential email, account id, or provider id.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `sessionClient` reads `session.modelRegistry.authStorage.getOAuthAccountIdentity(provider, session.sessionId)` - the session-sticky credential, not the first stored one - and resolves the tag, else the email, account id, org name, or project id. `clientSegment` renders `<client> - <endpoint>`, strips the client prefix a clone id repeats so `nr-alibaba` reads `nr - alibaba`, falls back to the endpoint alone when nothing identifies a client, and hides only before a model resolves. Registered in `SEGMENTS` beside `profile`.
+- `packages/coding-agent/src/modes/theme/symbols.ts`, `packages/coding-agent/src/modes/theme/theme-class.ts`: new `icon.account` glyph in all three symbol presets.
+- `packages/coding-agent/src/cli/gallery-fixtures/preview-session.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: `GallerySessionOptions.oauthEmail` and `provider` stub the lookup, and the gallery renders four client samples.
+- `packages/coding-agent/test/status-line-client-provider.test.ts`: covers the OAuth login, the clone lookup with its prefix strip, case-insensitive keys, the email and account-id fallbacks, the endpoint-alone path, the hidden pre-model path, and the startup placeholder.
 
 Both parts are configuration rather than derivation. The three anthropic emails differ only in their domain, so automatic shortening yields three labels that read alike, and a provider id prefix is only a client when the tag map says so.
 
-Opt in per machine by listing `client` and `provider` in `statusLine.leftSegments` and mapping `statusLine.segmentOptions.account.tags`, which the dotfiles `config.yml` does for all five logins and all eight clones.
+Opt in per machine by listing `client` in `statusLine.leftSegments` and mapping `statusLine.segmentOptions.account.tags`, which the dotfiles `config.yml` does for all five logins and all eight clones.
 
 ## feat(slash-commands): copy the last answer on bare /copy
 
@@ -120,7 +122,7 @@ Changed:
 - `packages/coding-agent/test/status-line-turn.test.ts`: the four format cases now assert `00:00`, `00:01` and `01:05`, plus a case asserting no `s` appears in either face.
 - `packages/coding-agent/test/status-line-time-spent.test.ts`: the same, asserting `00:05` and `02:00`.
 
-The hour field grows past `99` rather than wrapping, and `time_spent` still hides below one second of activity so the bar does not carry a clock before any work has happened.
+The hour field grows past `99` rather than wrapping, and `time_spent` still hides below one second of activity so the bar does not carry a clock before any work has happened. `turn` no longer uses this format: the merged time cell below reads `XmYYs`, and `formatClock` now serves `time_spent` alone.
 
 ## feat(status-line): stamp the moment the last turn ended
 
@@ -137,7 +139,34 @@ Changed:
 - `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: gallery variants for a recorded end and for the pre-first-turn state.
 - `packages/coding-agent/test/status-line-turn.test.ts`: a `turn_ended` block covering the stamp, the hold across a running turn, the hidden state before the first turn, and the meter's stamp-and-reset behavior including an unmatched `markActivityEnd`.
 
-The segment keeps the previous end visible while the next turn runs, since the bar already signals a running turn through the brand spinner and the `turn` clock. The dotfiles `config.yml` swaps `time` for `turn_ended` and drops the now-unused `segmentOptions.time`.
+The stamp survives as the third field of the merged time cell below; `turnEndedSegment` and the `turn_ended` id are gone, while `ActiveMeter.lastTurnEndedAt` and `getLastTurnEndedAt()` still feed it. The dotfiles `config.yml` drops `time` and the now-unused `segmentOptions.time`.
+
+## feat(status-line): fold the three time fields into one cell
+
+The bar carried `turn`, `time_spent` and `turn_ended` as three segments: `0m05s`, `0m11s` and `2026-09-07 17:23:47`, 35 columns of value separated by 6 columns of section separator and padding. They are one thought - this turn, all turns, when the last one ended - so they are now one cell, `0m05s - 0m11s - 17:23:47`, 26 columns including its icon.
+
+Changed:
+
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `turnSegment` renders all three fields, joined by ` - `. Field one is `turnElapsedMs` while a turn runs and `lastTurnMs` once it settles, field two is `activeMs` (omitted below one second), field three is `lastTurnEndedAt` as `hh:mm:ss` with the date dropped. Missing fields are left out rather than zero-filled, and the cell hides only when no field exists. `formatShortDuration` renders `XmYYs` with unpadded minutes that grow past 60 and zero-padded seconds; `formatWallClock` renders the stamp. The settled cell keeps `theme.icon.rewind`, the running one `theme.icon.time`.
+- `packages/coding-agent/src/config/settings-schema.ts`: `turn_ended` removed from the `StatusLineSegmentId` union; `turnEndedSegment` removed from `SEGMENTS`.
+- `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`: the fixture context gained `lastTurnEndedAt`, and the `turn` variants cover running, settled with the stamp, and the pre-first-turn state; the `turn_ended` variants are gone.
+- `packages/coding-agent/test/status-line-turn.test.ts`: the running-over-settled precedence, the settled duration, minutes past an hour, the full three-field order, the omitted sub-second cumulative field, the stamp held across a running turn, the hidden state, the cumulative-only first turn, and both meter record-and-reset behaviors.
+
+`time_spent` survives as an upstream segment and still renders `hh:mm` on its own; the dotfiles `config.yml` no longer lists it, since the merged cell carries its value.
+
+Seconds are back in the first field, which is what the clock format above removed. The cost is real - the field repaints as the second ticks and gains a column at `10m`, `100m` - and it is accepted because a turn under a minute reading `00:00` said nothing about how long it took.
+
+## feat(status-line): show only the current directory
+
+`path` spent 42 columns on `…epositories/github.com/can1357/oh-my-pi`: a leading-edge truncation of a tree whose home directory and forge host never change. `segmentOptions.path.lastDir` renders `.../oh-my-pi` instead, 14 columns with the icon.
+
+Changed:
+
+- `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.path.lastDir`.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: under `lastDir`, `pathSegment` replaces the path with `.../${path.basename(pwd)}` and skips both `shortenPath` and `clampPathLength`, so `abbreviate` and `maxLength` no longer apply. The hyperlink still targets the full directory, and the linked-worktree branch above is untouched - it already collapses to the project name.
+- `packages/coding-agent/test/status-line-path.test.ts`: a case asserting the current directory renders alone, that the tree above it is gone, and that a `maxLength` of 4 does not clip the name.
+
+The status line's overflow handling shrinks `path` first, so this also removes the elastic segment the bar used to absorb a narrow terminal - the trade is a fixed short path instead of a variable-length one.
 
 ## feat(shutdown): drop the exit chatter
 
@@ -245,7 +274,7 @@ These behaviors were requested alongside the patches and turned out to need no c
 
 `startup.quiet: true` removes the welcome panel, the logo, the Tips column, the LSP list, the recent-sessions column, the "Tip:" line under the box and the "Connected to MCP servers" notice, including the mid-session reprint from the `/mcp` dashboard. One key covers all of it; there is no finer granularity, and it also silences LSP startup notices, the model-scope banner and xdev mount notices. The panel can still flash once per directory because `cli.ts` prepaints from a per-cwd cache of the previous run's preferences before settings load.
 
-`statusLine.leftSegments` reads `pi, profile, model, path, turn, time_spent, context_pct, turn_ended, cost, usage`, which enables the segments added above and places the profile ahead of the model. The live-clock `time` segment is not listed, so `segmentOptions.time` carries no keys.
+`statusLine.leftSegments` reads `pi, client, profile, model, path, turn, context_pct, usage`, with `session_name, subagents` on the right. It enables the segments added above and places the client and profile ahead of the model. `cost` and `token_total` are configured off: spend is read on demand, not glanced at. The live-clock `time` segment is not listed either, so `segmentOptions.time` carries no keys, and `segmentOptions.path` carries only `lastDir: true`.
 
 `display.showTokenUsage: false` hides the per-turn usage row under each answer. Every profile's own config turns it on; the shared overlay outranks them, so one key switches it off everywhere.
 

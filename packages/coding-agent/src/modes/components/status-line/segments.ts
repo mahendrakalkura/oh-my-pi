@@ -418,11 +418,18 @@ const pathSegment: StatusLineSegment = {
 			}
 		}
 		const repoSuffix = ctx.activeRepo ? ` ↳ ${ctx.activeRepo.relativeRepoRoot}` : "";
-		if (opts.abbreviate !== false) {
-			pwd = shortenPath(pwd);
+		// `lastDir` keeps only the directory the agent is in, prefixed so the bar
+		// still reads as a path: a fixed `.../oh-my-pi` instead of a leading-edge
+		// truncation of the whole tree, which spent 40 columns to show a home
+		// directory and a forge host that never change.
+		if (opts.lastDir) {
+			pwd = `.../${path.basename(pwd)}`;
+		} else {
+			if (opts.abbreviate !== false) {
+				pwd = shortenPath(pwd);
+			}
+			pwd = clampPathLength(pwd, opts.maxLength ?? 40);
 		}
-
-		pwd = clampPathLength(pwd, opts.maxLength ?? 40);
 
 		const showScratchIcon = scratch && stripPrefix;
 		const icon = showScratchIcon ? theme.icon.scratchFolder : theme.icon.folder;
@@ -659,59 +666,70 @@ const timeSpentSegment: StatusLineSegment = {
 };
 
 /**
- * Turn stopwatch: the running turn's elapsed time while the agent works, then
- * the duration that turn took once it yields.
+ * The session's three time facts in one cell: `0m05s - 3m20s - 17:23:47` reads
+ * as this turn, all turns, and when the last one ended. The first field is the
+ * running turn while the agent works and that turn's duration once it settles,
+ * the second is cumulative active time ({@link SegmentContext.activeMs}, the
+ * union of every agent window), and the third is the wall clock at the last
+ * turn's close.
+ *
+ * One cell rather than three segments: each field is a few characters, so two
+ * section separators and their padding cost more than any of the values. Fields
+ * missing on a fresh session (no closed turn, under a second of activity) are
+ * left out rather than padded with zeros, and the cell hides entirely until one
+ * of them exists.
+ *
+ * The third field never re-reads the clock. It is a record of a past instant
+ * stamped at turn close, so a repaint from any other source (keystroke, git
+ * resolve, usage refresh) cannot overwrite it.
  */
 const turnSegment: StatusLineSegment = {
 	id: "turn",
 	render(ctx) {
-		if (ctx.turnElapsedMs != null) {
-			return { content: withIcon(theme.icon.time, formatClock(ctx.turnElapsedMs)), visible: true };
-		}
-		if (ctx.lastTurnMs == null) return { content: "", visible: false };
+		const running = ctx.turnElapsedMs != null;
+		const duration = ctx.turnElapsedMs ?? ctx.lastTurnMs;
 
-		// A different icon for the settled value: the number alone cannot say
-		// whether it is still counting, and the brand spinner is a segment away.
-		return { content: withIcon(theme.icon.rewind, formatClock(ctx.lastTurnMs)), visible: true };
+		const fields: string[] = [];
+		if (duration != null) fields.push(formatShortDuration(duration));
+		if (ctx.activeMs >= 1000) fields.push(formatShortDuration(ctx.activeMs));
+		if (ctx.lastTurnEndedAt != null) fields.push(formatWallClock(new Date(ctx.lastTurnEndedAt)));
+		if (fields.length === 0) return { content: "", visible: false };
+
+		// A different icon once the turn settles: the numbers alone cannot say
+		// whether the first field is still counting, and the brand spinner is a
+		// segment away.
+		const icon = running ? theme.icon.time : theme.icon.rewind;
+		return { content: withIcon(icon, statusValue(ctx, fields.join(" - "))), visible: true };
 	},
 };
 
 /**
- * Wall-clock stamp of the moment the last turn ended, `yyyy-mm-dd hh:mm:ss`,
- * hidden until the first turn closes. Unlike `time` this never re-reads the
- * clock: the value is a record of a past instant, so a repaint from any other
- * source (keystroke, git resolve, usage refresh) cannot overwrite it.
- */
-const turnEndedSegment: StatusLineSegment = {
-	id: "turn_ended",
-	render(ctx) {
-		if (ctx.lastTurnEndedAt == null) return { content: "", visible: false };
-
-		const endedAt = new Date(ctx.lastTurnEndedAt);
-		const date = [
-			endedAt.getFullYear(),
-			String(endedAt.getMonth() + 1).padStart(2, "0"),
-			String(endedAt.getDate()).padStart(2, "0"),
-		].join("-");
-		const clock = [endedAt.getHours(), endedAt.getMinutes(), endedAt.getSeconds()]
-			.map(part => String(part).padStart(2, "0"))
-			.join(":");
-
-		return { content: withIcon(theme.icon.time, statusValue(ctx, `${date} ${clock}`)), visible: true };
-	},
-};
-
-/**
- * Both duration segments read as a clock: zero-padded `hh:mm`, never seconds.
- * Seconds churned the field on every spinner repaint and changed its width as
- * a turn crossed each unit boundary, which shifted every segment beside it.
- * The floor is `00:00` for the first minute; the hour field grows past 99h
- * rather than wrapping.
+ * `time_spent` reads as a clock: zero-padded `hh:mm`, never seconds. Seconds
+ * churned the field on every spinner repaint and changed its width as a turn
+ * crossed each unit boundary, which shifted every segment beside it. The floor
+ * is `00:00` for the first minute; the hour field grows past 99h rather than
+ * wrapping.
  */
 function formatClock(ms: number): string {
 	const minutes = Math.floor(ms / 60_000);
 	const hours = Math.floor(minutes / 60);
 	return `${String(hours).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/**
+ * `XmYYs` for the merged `turn` cell, where minutes are unpadded and grow past
+ * 60 rather than carrying an hour field. Seconds are zero-padded so the cell's
+ * width only changes when the minute count gains a digit.
+ */
+function formatShortDuration(ms: number): string {
+	const totalSeconds = Math.floor(ms / 1000);
+	const minutes = Math.floor(totalSeconds / 60);
+	return `${minutes}m${String(totalSeconds % 60).padStart(2, "0")}s`;
+}
+
+/** `hh:mm:ss` for a recorded instant; every field zero-padded so width is fixed. */
+function formatWallClock(at: Date): string {
+	return [at.getHours(), at.getMinutes(), at.getSeconds()].map(part => String(part).padStart(2, "0")).join(":");
 }
 
 const timeSegment: StatusLineSegment = {
@@ -817,32 +835,16 @@ function sessionClient(ctx: SegmentContext, provider: string): string | undefine
 	);
 }
 
-/** Names the client paying for this session; hidden when no credential identifies one. */
+/**
+ * Names the client paying for this session and the endpoint serving it in one
+ * cell, `mk - anthropic`. A clone's provider id opens with its own client tag,
+ * which the same cell already renders, so the prefix is stripped: `nr-alibaba`
+ * beside client `nr` reads `nr - alibaba`. Two facts in one cell rather than two
+ * segments: they are always read together, and a section separator plus its
+ * padding between them cost as much as the shorter of the two values.
+ */
 const clientSegment: StatusLineSegment = {
 	id: "client",
-	render(ctx) {
-		const provider = ctx.session?.model?.provider;
-		if (!provider) return { content: "", visible: false };
-
-		const client = sessionClient(ctx, provider);
-		if (!client) return { content: "", visible: false };
-
-		// Emails and org names come from the provider, so they are sanitized like
-		// any other foreign text before they reach the bar.
-		const display = ctx.startupPlaceholder
-			? STARTUP_PLACEHOLDER
-			: truncateToWidth(sanitizeStatusText(client), TRUNCATE_LENGTHS.SHORT);
-		return { content: withIcon(theme.icon.account, display), visible: true };
-	},
-};
-
-/**
- * Names the provider serving this session. A clone's provider id opens with its
- * own client tag, which the `client` segment already renders, so the prefix is
- * stripped here: `nr-alibaba` reads `alibaba`.
- */
-const providerSegment: StatusLineSegment = {
-	id: "provider",
 	render(ctx) {
 		const provider = ctx.session?.model?.provider;
 		if (!provider) return { content: "", visible: false };
@@ -851,10 +853,13 @@ const providerSegment: StatusLineSegment = {
 		const prefix = client ? `${client.toLowerCase()}-` : "";
 		const endpoint = prefix && provider.toLowerCase().startsWith(prefix) ? provider.slice(prefix.length) : provider;
 
+		// Emails, org names and provider ids come from the provider, so they are
+		// sanitized like any other foreign text before they reach the bar.
+		const parts = client ? [client, endpoint] : [endpoint];
 		const display = ctx.startupPlaceholder
 			? STARTUP_PLACEHOLDER
-			: truncateToWidth(sanitizeStatusText(endpoint), TRUNCATE_LENGTHS.SHORT);
-		return { content: withIcon(theme.icon.provider, display), visible: true };
+			: parts.map(value => truncateToWidth(sanitizeStatusText(value), TRUNCATE_LENGTHS.SHORT)).join(" - ");
+		return { content: withIcon(theme.icon.account, display), visible: true };
 	},
 };
 
@@ -1039,13 +1044,11 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	context_total: contextTotalSegment,
 	time_spent: timeSpentSegment,
 	turn: turnSegment,
-	turn_ended: turnEndedSegment,
 	time: timeSegment,
 	session: sessionSegment,
 	hostname: hostnameSegment,
 	profile: profileSegment,
 	client: clientSegment,
-	provider: providerSegment,
 	cache_read: cacheReadSegment,
 	cache_write: cacheWriteSegment,
 	cache_hit: cacheHitSegment,

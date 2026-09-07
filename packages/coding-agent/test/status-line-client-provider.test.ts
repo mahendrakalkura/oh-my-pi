@@ -79,7 +79,7 @@ function createAccountContext(
 }
 
 describe("status line client segment", () => {
-	it("names the client behind this session's sticky credential", () => {
+	it("names the client and the endpoint behind this session's sticky credential", () => {
 		const lookup: IdentityLookup = {};
 		const rendered = renderSegment(
 			"client",
@@ -89,20 +89,20 @@ describe("status line client segment", () => {
 		);
 
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toBe(`${theme.icon.account} mk`);
+		expect(rendered.content).toBe(`${theme.icon.account} mk - anthropic`);
 		// The identity is per-session sticky, so the segment must ask about its own
 		// session and its own provider; either argument dropped reports someone else's account.
 		expect(lookup.provider).toBe("anthropic");
 		expect(lookup.sessionId).toBe("session-under-test");
 	});
 
-	it("reads the client out of a person-suffixed api-key clone", () => {
+	it("reads the client out of a clone id and does not repeat it in the endpoint", () => {
 		const rendered = renderSegment(
 			"client",
 			createAccountContext(undefined, {}, "nr-alibaba", { "nr-alibaba": "nr" }),
 		);
 
-		expect(rendered.content).toBe(`${theme.icon.account} nr`);
+		expect(rendered.content).toBe(`${theme.icon.account} nr - alibaba`);
 	});
 
 	it("matches tag keys case-insensitively", () => {
@@ -113,7 +113,7 @@ describe("status line client segment", () => {
 			}),
 		);
 
-		expect(rendered.content).toBe(`${theme.icon.account} jg`);
+		expect(rendered.content).toBe(`${theme.icon.account} jg - anthropic`);
 	});
 
 	it("names an unmapped login by email rather than hiding it", () => {
@@ -133,10 +133,10 @@ describe("status line client segment", () => {
 		expect(rendered.content).toContain("acct-4711");
 	});
 
-	it("hides itself when nothing identifies a client", () => {
+	it("renders the endpoint alone when nothing identifies a client", () => {
 		const rendered = renderSegment("client", createAccountContext(undefined, {}, "nr-alibaba"));
 
-		expect(rendered).toEqual({ content: "", visible: false });
+		expect(rendered.content).toBe(`${theme.icon.account} nr-alibaba`);
 	});
 
 	it("hides itself before a model is resolved", () => {
@@ -145,7 +145,7 @@ describe("status line client segment", () => {
 		expect(rendered).toEqual({ content: "", visible: false });
 	});
 
-	it("keeps the icon and elides the client while the bar is still starting", () => {
+	it("keeps the icon and elides both values while the bar is still starting", () => {
 		const ctx = createAccountContext({ email: "mahendrakalkura@gmail.com" }, {}, "anthropic", {
 			"mahendrakalkura@gmail.com": "mk",
 		});
@@ -155,39 +155,6 @@ describe("status line client segment", () => {
 		expect(rendered.visible).toBe(true);
 		expect(rendered.content).toContain(theme.icon.account);
 		expect(rendered.content).not.toContain("mk");
-	});
-});
-
-describe("status line provider segment", () => {
-	it("names an oauth provider by its id", () => {
-		const rendered = renderSegment(
-			"provider",
-			createAccountContext({ email: "mahendrakalkura@gmail.com" }, {}, "anthropic", {
-				"mahendrakalkura@gmail.com": "mk",
-			}),
-		);
-
-		expect(rendered.content).toBe(`${theme.icon.provider} anthropic`);
-	});
-
-	it("strips the client prefix a clone id repeats", () => {
-		const rendered = renderSegment(
-			"provider",
-			createAccountContext(undefined, {}, "nr-alibaba", { "nr-alibaba": "nr" }),
-		);
-
-		expect(rendered.content).toBe(`${theme.icon.provider} alibaba`);
-	});
-
-	it("keeps the whole id when no client is known", () => {
-		const rendered = renderSegment("provider", createAccountContext(undefined, {}, "nr-alibaba"));
-
-		expect(rendered.content).toBe(`${theme.icon.provider} nr-alibaba`);
-	});
-
-	it("hides itself before a model is resolved", () => {
-		const rendered = renderSegment("provider", createAccountContext({ email: "mk@example.com" }, {}, null));
-
-		expect(rendered).toEqual({ content: "", visible: false });
+		expect(rendered.content).not.toContain("anthropic");
 	});
 });

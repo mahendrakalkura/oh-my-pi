@@ -70,6 +70,7 @@ export function createGallerySegmentContext(sessionOptions?: GallerySessionOptio
 		activeMs: 372_000,
 		turnElapsedMs: null,
 		lastTurnMs: 47_000,
+		lastTurnEndedAt: FIXED_NOW.getTime(),
 		git: {
 			branch: "gallery/reference",
 			status: { staged: 2, unstaged: 3, untracked: 1 },
@@ -99,13 +100,11 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 		case "turn":
 			return [
 				{ label: "running", context: { turnElapsedMs: 92_000 } },
-				{ label: "last turn", context: { turnElapsedMs: null } },
-				{ label: "before the first turn", context: { turnElapsedMs: null, lastTurnMs: null } },
-			];
-		case "turn_ended":
-			return [
-				{ label: "last turn ended", context: { lastTurnEndedAt: new Date(2026, 8, 4, 9, 7, 5).getTime() } },
-				{ label: "before the first turn", context: { lastTurnEndedAt: null } },
+				{ label: "settled, with the end stamp", context: { turnElapsedMs: null } },
+				{
+					label: "before the first turn",
+					context: { turnElapsedMs: null, lastTurnMs: null, lastTurnEndedAt: null, activeMs: 0 },
+				},
 			];
 		case "model":
 			return [
@@ -258,25 +257,11 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 					context: { options: { account: { tags: { "agent@example.com": "mk" } } } },
 				},
 				{
-					label: "api-key clone",
-					session: { oauthEmail: null, provider: "nr-alibaba" },
-					context: { options: { account: { tags: { "nr-alibaba": "nr" } } } },
-				},
-				{ label: "untagged login", session: { oauthEmail: "agent@example.com" } },
-				{ label: "no client known", session: { oauthEmail: null, provider: "nr-alibaba" } },
-			];
-		case "provider":
-			return [
-				{
-					label: "oauth provider",
-					session: { oauthEmail: "agent@example.com" },
-					context: { options: { account: { tags: { "agent@example.com": "mk" } } } },
-				},
-				{
 					label: "api-key clone, client prefix stripped",
 					session: { oauthEmail: null, provider: "nr-alibaba" },
 					context: { options: { account: { tags: { "nr-alibaba": "nr" } } } },
 				},
+				{ label: "untagged login falls back to the email", session: { oauthEmail: "agent@example.com" } },
 				{ label: "untagged clone keeps its id", session: { oauthEmail: null, provider: "nr-alibaba" } },
 			];
 		default:

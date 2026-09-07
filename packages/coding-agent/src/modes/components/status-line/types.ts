@@ -31,7 +31,7 @@ export interface StatusLineSegmentOptions {
 	 */
 	account?: { tags?: Record<string, string> };
 	model?: { showThinkingLevel?: boolean };
-	path?: { abbreviate?: boolean; maxLength?: number; stripWorkPrefix?: boolean };
+	path?: { abbreviate?: boolean; lastDir?: boolean; maxLength?: number; stripWorkPrefix?: boolean };
 	git?: { showBranch?: boolean; showStaged?: boolean; showUnstaged?: boolean; showUntracked?: boolean };
 	time?: { format?: "12h" | "24h"; showSeconds?: boolean; showDate?: boolean };
 }

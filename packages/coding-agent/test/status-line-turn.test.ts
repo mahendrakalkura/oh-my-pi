@@ -1,14 +1,18 @@
 /**
- * The `turn` segment is a stopwatch with two faces: the running turn's elapsed
- * time while the agent works, and the duration that turn took once it yields.
+ * The `turn` segment carries three time facts in one cell,
+ * `0m05s - 3m20s - 17:23:47`: this turn, all turns, and when the last one
+ * ended.
  *
  * Contract:
- * - `turnElapsedMs` wins whenever it is non-null, so a running turn is never
- *   masked by the previous one.
- * - `lastTurnMs` renders when idle; before the first turn closes the segment
- *   is invisible rather than rendering a zero.
- * - `StatusLineComponent` records the duration of each closed
- *   `agent_start`→`agent_end` window, and `resetActiveTime` drops it along
+ * - Field one is `turnElapsedMs` whenever it is non-null, so a running turn is
+ *   never masked by the previous one, and `lastTurnMs` once it settles.
+ * - Field two is cumulative active time, omitted below one second so a fresh
+ *   session does not carry a zero.
+ * - Field three is the wall clock at the last turn's close, held while the next
+ *   turn runs.
+ * - With no field to show the cell is invisible rather than rendering zeros.
+ * - `StatusLineComponent` records the duration and end instant of each closed
+ *   `agent_start`→`agent_end` window, and `resetActiveTime` drops both along
  *   with the accumulator.
  */
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
@@ -32,6 +36,7 @@ function createCtx(
 	turnElapsedMs: number | null,
 	lastTurnMs: number | null,
 	lastTurnEndedAt: number | null = null,
+	activeMs = 0,
 ): SegmentContext {
 	return {
 		// The segment under test never touches `session`; stub it.
@@ -65,7 +70,7 @@ function createCtx(
 		compactionSpeculation: "idle",
 		speculationBlinkOn: true,
 		subagentCount: 0,
-		activeMs: 0,
+		activeMs,
 		turnElapsedMs,
 		lastTurnMs,
 		lastTurnEndedAt,
@@ -112,37 +117,50 @@ function makeSession(): ConstructorParameters<typeof StatusLineComponent>[0] {
 	} as unknown as ConstructorParameters<typeof StatusLineComponent>[0];
 }
 
+const ENDED_AT = new Date(2026, 8, 4, 9, 7, 5).getTime();
+
 describe("turn segment", () => {
-	it("renders the running turn as a zero-padded clock", () => {
-		const rendered = renderSegment("turn", createCtx(12_400, null));
+	it("leads with the running turn, not the previous one", () => {
+		const rendered = renderSegment("turn", createCtx(65_000, 90_000));
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("00:00");
+		expect(rendered.content).toContain("1m05s");
+		expect(rendered.content).not.toContain("1m30s");
 	});
 
-	it("prefers the running turn over the previous one", () => {
-		const rendered = renderSegment("turn", createCtx(5_000, 90_000));
-		expect(rendered.content).toContain("00:00");
-		expect(rendered.content).not.toContain("00:01");
-	});
-
-	it("renders the previous turn while idle", () => {
+	it("leads with the previous turn's duration once it settles", () => {
 		const rendered = renderSegment("turn", createCtx(null, 90_000));
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("00:01");
+		expect(rendered.content).toContain("1m30s");
 	});
 
-	it("carries hours in the leading field", () => {
+	it("grows the minute field past an hour instead of carrying hours", () => {
 		const rendered = renderSegment("turn", createCtx(null, 3_900_000));
-		expect(rendered.content).toContain("01:05");
+		expect(rendered.content).toContain("65m00s");
 	});
 
-	it("never renders seconds", () => {
-		expect(renderSegment("turn", createCtx(59_000, null)).content).not.toContain("s");
-		expect(renderSegment("turn", createCtx(null, 12_400)).content).not.toContain("s");
+	it("renders the turn, the cumulative active time, and the end stamp in that order", () => {
+		const rendered = renderSegment("turn", createCtx(null, 90_000, ENDED_AT, 200_000));
+		expect(Bun.stripANSI(rendered.content)).toContain("1m30s - 3m20s - 09:07:05");
 	});
 
-	it("hides itself before the first turn closes", () => {
+	it("omits the cumulative field below a second of activity", () => {
+		const rendered = renderSegment("turn", createCtx(null, 90_000, null, 500));
+		expect(Bun.stripANSI(rendered.content).endsWith("1m30s")).toBe(true);
+	});
+
+	it("holds the previous end stamp while a new turn runs", () => {
+		const rendered = renderSegment("turn", createCtx(4_000, 92_000, ENDED_AT));
+		expect(Bun.stripANSI(rendered.content)).toContain("0m04s - 09:07:05");
+	});
+
+	it("hides itself when no turn has run and nothing is active", () => {
 		expect(renderSegment("turn", createCtx(null, null))).toEqual({ content: "", visible: false });
+	});
+
+	it("shows the cumulative field alone during the first turn's activity", () => {
+		const rendered = renderSegment("turn", createCtx(null, null, null, 5_000));
+		expect(rendered.visible).toBe(true);
+		expect(Bun.stripANSI(rendered.content)).toContain("0m05s");
 	});
 
 	it("records the duration of each closed turn and drops it on reset", () => {
@@ -161,25 +179,6 @@ describe("turn segment", () => {
 
 		component.resetActiveTime();
 		expect(component.getLastTurnMs()).toBeNull();
-	});
-});
-
-describe("turn_ended segment", () => {
-	const endedAt = new Date(2026, 8, 4, 9, 7, 5).getTime();
-
-	it("stamps the moment the last turn ended", () => {
-		const rendered = renderSegment("turn_ended", createCtx(null, 92_000, endedAt));
-		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("2026-09-04 09:07:05");
-	});
-
-	it("holds the previous end while a new turn runs", () => {
-		const rendered = renderSegment("turn_ended", createCtx(4_000, 92_000, endedAt));
-		expect(rendered.content).toContain("2026-09-04 09:07:05");
-	});
-
-	it("hides itself before the first turn closes", () => {
-		expect(renderSegment("turn_ended", createCtx(null, null))).toEqual({ content: "", visible: false });
 	});
 
 	it("records the wall-clock end of each closed turn and drops it on reset", () => {
