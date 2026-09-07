@@ -167,8 +167,8 @@ Commit `681d24244c`.
 Changed:
 
 - `packages/coding-agent/src/modes/components/status-line/types.ts`: `StatusLineSegmentOptions.path.lastDir`.
-- `packages/coding-agent/src/modes/components/status-line/segments.ts`: under `lastDir`, `pathSegment` replaces the path with `.../${path.basename(pwd)}` and skips both `shortenPath` and `clampPathLength`, so `abbreviate` and `maxLength` no longer apply. The hyperlink still targets the full directory, and the linked-worktree branch above is untouched - it already collapses to the project name.
-- `packages/coding-agent/test/status-line-path.test.ts`: a case asserting the current directory renders alone, that the tree above it is gone, and that a `maxLength` of 4 does not clip the name.
+- `packages/coding-agent/src/modes/components/status-line/segments.ts`: `pathSegment` short-circuits on `lastDir` before either decoration, rendering `.../${path.basename(getProjectDir())}` with no `shortenPath` and no `clampPathLength`, so `abbreviate` and `maxLength` no longer apply. It skips the linked-worktree label, which reads `project/worktree`, and the nested-repo `↳ suffix`; both put a second name on a bar that asked for one, and neither is the directory the agent is in. The worktree icon still wins when a worktree is active, and the hyperlink still targets the full directory.
+- `packages/coding-agent/test/status-line-path.test.ts`: three cases - the current directory alone with the tree above it gone and a `maxLength` of 4 not clipping the name, the dropped nested-repo suffix, and the worktree rendering its own directory while keeping the worktree icon.
 
 The status line's overflow handling shrinks `path` first, so this also removes the elastic segment the bar used to absorb a narrow terminal - the trade is a fixed short path instead of a variable-length one.
 

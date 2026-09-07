@@ -391,6 +391,23 @@ const pathSegment: StatusLineSegment = {
 	render(ctx) {
 		const opts = ctx.options.path ?? {};
 		const stripPrefix = opts.stripWorkPrefix !== false;
+		const projectDir = ctx.activeRepo?.cwd ?? getProjectDir();
+		const { scratch, relative } = classifyProjectDir(projectDir);
+		const scratchIcon = scratch && stripPrefix ? theme.icon.scratchFolder : theme.icon.folder;
+
+		// `lastDir` keeps only the directory the agent is in, prefixed so the bar
+		// still reads as a path: a fixed `.../oh-my-pi` instead of a leading-edge
+		// truncation of the whole tree, which spent 40 columns to show a home
+		// directory and a forge host that never change. It short-circuits both
+		// decorations below - the worktree label's `project/worktree` and the
+		// nested-repo `↳ suffix` - because either one puts a second name on a bar
+		// that asked for one, and neither is the directory in question.
+		if (opts.lastDir) {
+			const leaf = path.basename(getProjectDir());
+			const text = ctx.startupPlaceholder ? STARTUP_PLACEHOLDER : fileHyperlink(getProjectDir(), `.../${leaf}`);
+			const icon = ctx.worktree && stripPrefix ? theme.icon.worktree : scratchIcon;
+			return { content: theme.fg("statusLinePath", withIcon(icon, text)), visible: true };
+		}
 
 		// Linked git worktree: the on-disk path nests the worktree base, the
 		// project, and a worktree dir that usually duplicates the branch (already
@@ -406,10 +423,7 @@ const pathSegment: StatusLineSegment = {
 			return { content: theme.fg("statusLinePath", content), visible: true };
 		}
 
-		const projectDir = ctx.activeRepo?.cwd ?? getProjectDir();
-		const { scratch, relative } = classifyProjectDir(projectDir);
 		let pwd = projectDir;
-
 		if (stripPrefix) {
 			if (scratch) {
 				if (relative) pwd = relative;
@@ -418,24 +432,13 @@ const pathSegment: StatusLineSegment = {
 			}
 		}
 		const repoSuffix = ctx.activeRepo ? ` ↳ ${ctx.activeRepo.relativeRepoRoot}` : "";
-		// `lastDir` keeps only the directory the agent is in, prefixed so the bar
-		// still reads as a path: a fixed `.../oh-my-pi` instead of a leading-edge
-		// truncation of the whole tree, which spent 40 columns to show a home
-		// directory and a forge host that never change.
-		if (opts.lastDir) {
-			pwd = `.../${path.basename(pwd)}`;
-		} else {
-			if (opts.abbreviate !== false) {
-				pwd = shortenPath(pwd);
-			}
-			pwd = clampPathLength(pwd, opts.maxLength ?? 40);
+		if (opts.abbreviate !== false) {
+			pwd = shortenPath(pwd);
 		}
+		pwd = clampPathLength(pwd, opts.maxLength ?? 40);
 
-		const showScratchIcon = scratch && stripPrefix;
-		const icon = showScratchIcon ? theme.icon.scratchFolder : theme.icon.folder;
 		const text = ctx.startupPlaceholder ? STARTUP_PLACEHOLDER : `${fileHyperlink(projectDir, pwd)}${repoSuffix}`;
-		const content = withIcon(icon, text);
-		return { content: theme.fg("statusLinePath", content), visible: true };
+		return { content: theme.fg("statusLinePath", withIcon(scratchIcon, text)), visible: true };
 	},
 };
 

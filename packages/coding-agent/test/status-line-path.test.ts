@@ -284,6 +284,31 @@ describe("status line path segment", () => {
 			removeSyncWithRetries(parentDir);
 		}
 	});
+
+	it("drops the nested-repo suffix under lastDir", () => {
+		const parentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-lastdir-repo-"));
+		const repoDir = path.join(parentDir, "pr-workspace");
+		fs.mkdirSync(repoDir);
+		try {
+			setProjectDir(parentDir);
+			const ctx = createPathContext();
+			ctx.options.path = { lastDir: true, stripWorkPrefix: true };
+			ctx.activeRepo = {
+				cwd: parentDir,
+				repoRoot: repoDir,
+				relativeRepoRoot: "pr-workspace",
+				source: "single-direct-child-repo",
+			};
+
+			const content = Bun.stripANSI(renderSegment("path", ctx).content);
+			expect(content).toContain(`.../${path.basename(parentDir)}`);
+			expect(content).not.toContain("pr-workspace");
+			expect(content).not.toContain("↳");
+		} finally {
+			setProjectDir(originalProjectDir);
+			removeSyncWithRetries(parentDir);
+		}
+	});
 });
 
 describe("status line path segment in a linked worktree", () => {
@@ -340,5 +365,22 @@ describe("status line path segment in a linked worktree", () => {
 		expect(label.length).toBeLessThanOrEqual(10);
 		expect(label.startsWith("…")).toBe(true);
 		expect(label.endsWith("feature")).toBe(true);
+	});
+
+	it("renders the worktree's own directory under lastDir, keeping the worktree icon", () => {
+		const worktreeDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-status-line-wt-lastdir-"));
+		try {
+			setProjectDir(worktreeDir);
+			const ctx = worktreeContext({ projectName: "pi", worktreeName: "wt-icon" }, "icon");
+			ctx.options.path = { lastDir: true, stripWorkPrefix: true };
+
+			const content = Bun.stripANSI(renderSegment("path", ctx).content);
+			expect(content).toBe(`${theme.icon.worktree} .../${path.basename(worktreeDir)}`);
+			// `project/worktree` is the label lastDir exists to replace.
+			expect(content).not.toContain("pi/");
+		} finally {
+			setProjectDir(originalProjectDir);
+			removeSyncWithRetries(worktreeDir);
+		}
 	});
 });
