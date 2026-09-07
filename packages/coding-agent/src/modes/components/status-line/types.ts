@@ -21,12 +21,13 @@ export interface CollabStatus {
 
 export interface StatusLineSegmentOptions {
 	/**
-	 * `tags` names the client behind a credential for the `account` segment. Keys
-	 * are a credential email, an account id, or a provider id, matched
-	 * case-insensitively; the value is the short client label. An OAuth identity
-	 * with no entry falls back to its email, so an unmapped login is still named,
-	 * and a provider id that opens with its own tag renders the remainder as the
-	 * provider, so `nr-alibaba` reads `alibaba · nr`.
+	 * `tags` names the client behind a credential. Both the `client` and the
+	 * `provider` segment read it: keys are a credential email, an account id, or
+	 * a provider id, matched case-insensitively, and the value is the short
+	 * client label. An OAuth identity with no entry falls back to its email, so
+	 * an unmapped login is still named, and a provider id that opens with its own
+	 * tag drops that prefix in the `provider` segment, so `nr-alibaba` renders as
+	 * `nr` then `alibaba`.
 	 */
 	account?: { tags?: Record<string, string> };
 	model?: { showThinkingLevel?: boolean };

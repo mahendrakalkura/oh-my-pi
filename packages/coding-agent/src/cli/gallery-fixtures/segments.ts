@@ -250,7 +250,7 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 				{ label: "host active", context: { collab: { role: "host", participantCount: 3 } } },
 				{ label: "guest active", context: { collab: { role: "guest", participantCount: 3 } } },
 			];
-		case "account":
+		case "client":
 			return [
 				{
 					label: "oauth login",
@@ -263,7 +263,21 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 					context: { options: { account: { tags: { "nr-alibaba": "nr" } } } },
 				},
 				{ label: "untagged login", session: { oauthEmail: "agent@example.com" } },
-				{ label: "untagged provider", session: { oauthEmail: null, provider: "nr-alibaba" } },
+				{ label: "no client known", session: { oauthEmail: null, provider: "nr-alibaba" } },
+			];
+		case "provider":
+			return [
+				{
+					label: "oauth provider",
+					session: { oauthEmail: "agent@example.com" },
+					context: { options: { account: { tags: { "agent@example.com": "mk" } } } },
+				},
+				{
+					label: "api-key clone, client prefix stripped",
+					session: { oauthEmail: null, provider: "nr-alibaba" },
+					context: { options: { account: { tags: { "nr-alibaba": "nr" } } } },
+				},
+				{ label: "untagged clone keeps its id", session: { oauthEmail: null, provider: "nr-alibaba" } },
 			];
 		default:
 			return [{ label: "canonical" }];

@@ -790,49 +790,71 @@ function accountTag(tags: Record<string, string> | undefined, key: string | unde
 }
 
 /**
- * Names the provider serving this session and the client paying for it, which
- * are carried in two different places. A provider holding several OAuth logins
- * (three on `anthropic`, two on `openai-codex`) identifies the client by the
- * session-sticky credential's email, so the field follows a mid-session
- * rotation or a `/login` pin. A person-suffixed API-key clone carries no
- * credential identity and fuses both facts into its provider id, so `nr-alibaba`
- * splits back into the `alibaba` provider and the `nr` client.
+ * Resolves the client paying for this session from the session-sticky
+ * credential. A provider holding several OAuth logins (three on `anthropic`,
+ * two on `openai-codex`) identifies the client by that credential's email, so
+ * the answer follows a mid-session rotation or a `/login` pin. A person-suffixed
+ * API-key clone carries no credential identity and names its client in the
+ * provider id instead, which is why the provider id is the last key tried.
  *
- * `segmentOptions.account.tags` supplies the client, keyed by credential email,
- * account id, or provider id. Both parts are configuration rather than
+ * `segmentOptions.account.tags` supplies the short client label, keyed by
+ * credential email, account id, or provider id. It is configuration rather than
  * derivation: the three anthropic emails differ only in their domain, and a
- * provider id prefix is only an account when the tag map says so.
+ * provider id prefix is only a client when the tag map says so.
  */
-const accountSegment: StatusLineSegment = {
-	id: "account",
+function sessionClient(ctx: SegmentContext, provider: string): string | undefined {
+	const authStorage = ctx.session.modelRegistry?.authStorage;
+	const identity = authStorage?.getOAuthAccountIdentity(provider, ctx.session.sessionId);
+	const tags = ctx.options.account?.tags;
+	return (
+		accountTag(tags, identity?.email) ??
+		accountTag(tags, identity?.accountId) ??
+		accountTag(tags, provider) ??
+		identity?.email ??
+		identity?.accountId ??
+		identity?.orgName ??
+		identity?.projectId
+	);
+}
+
+/** Names the client paying for this session; hidden when no credential identifies one. */
+const clientSegment: StatusLineSegment = {
+	id: "client",
 	render(ctx) {
 		const provider = ctx.session?.model?.provider;
 		if (!provider) return { content: "", visible: false };
 
-		const authStorage = ctx.session.modelRegistry?.authStorage;
-		const identity = authStorage?.getOAuthAccountIdentity(provider, ctx.session.sessionId);
-		const tags = ctx.options.account?.tags;
-		const client =
-			accountTag(tags, identity?.email) ??
-			accountTag(tags, identity?.accountId) ??
-			accountTag(tags, provider) ??
-			identity?.email ??
-			identity?.accountId ??
-			identity?.orgName ??
-			identity?.projectId;
+		const client = sessionClient(ctx, provider);
+		if (!client) return { content: "", visible: false };
 
-		// A clone's provider id already opens with its client tag, so rendering
-		// both would repeat it: `nr-alibaba · nr`.
+		// Emails and org names come from the provider, so they are sanitized like
+		// any other foreign text before they reach the bar.
+		const display = ctx.startupPlaceholder
+			? STARTUP_PLACEHOLDER
+			: truncateToWidth(sanitizeStatusText(client), TRUNCATE_LENGTHS.SHORT);
+		return { content: withIcon(theme.icon.account, display), visible: true };
+	},
+};
+
+/**
+ * Names the provider serving this session. A clone's provider id opens with its
+ * own client tag, which the `client` segment already renders, so the prefix is
+ * stripped here: `nr-alibaba` reads `alibaba`.
+ */
+const providerSegment: StatusLineSegment = {
+	id: "provider",
+	render(ctx) {
+		const provider = ctx.session?.model?.provider;
+		if (!provider) return { content: "", visible: false };
+
+		const client = sessionClient(ctx, provider);
 		const prefix = client ? `${client.toLowerCase()}-` : "";
 		const endpoint = prefix && provider.toLowerCase().startsWith(prefix) ? provider.slice(prefix.length) : provider;
 
-		// Provider ids are local, but emails and org names come from the provider,
-		// so both parts are sanitized like any other foreign text.
-		const label = client ? `${endpoint}${theme.sep.dot}${client}` : endpoint;
 		const display = ctx.startupPlaceholder
 			? STARTUP_PLACEHOLDER
-			: truncateToWidth(sanitizeStatusText(label), TRUNCATE_LENGTHS.SHORT);
-		return { content: withIcon(theme.icon.account, display), visible: true };
+			: truncateToWidth(sanitizeStatusText(endpoint), TRUNCATE_LENGTHS.SHORT);
+		return { content: withIcon(theme.icon.provider, display), visible: true };
 	},
 };
 
@@ -1022,7 +1044,8 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	session: sessionSegment,
 	hostname: hostnameSegment,
 	profile: profileSegment,
-	account: accountSegment,
+	client: clientSegment,
+	provider: providerSegment,
 	cache_read: cacheReadSegment,
 	cache_write: cacheWriteSegment,
 	cache_hit: cacheHitSegment,
