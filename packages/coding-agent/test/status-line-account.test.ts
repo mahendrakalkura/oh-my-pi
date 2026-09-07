@@ -79,12 +79,17 @@ function createAccountContext(
 }
 
 describe("status line account segment", () => {
-	it("names this session's account for the active provider", () => {
+	it("names the provider and this session's client", () => {
 		const lookup: IdentityLookup = {};
-		const rendered = renderSegment("account", createAccountContext({ email: "mk@example.com" }, lookup));
+		const rendered = renderSegment(
+			"account",
+			createAccountContext({ email: "mahendrakalkura@gmail.com" }, lookup, "anthropic", {
+				"mahendrakalkura@gmail.com": "mk",
+			}),
+		);
 
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("mk@example.com");
+		expect(rendered.content).toContain(`anthropic${theme.sep.dot}mk`);
 		expect(rendered.content).toContain(theme.icon.account);
 		// The identity is per-session sticky, so the segment must ask about its own
 		// session and its own provider; either argument dropped reports someone else's account.
@@ -92,27 +97,30 @@ describe("status line account segment", () => {
 		expect(lookup.sessionId).toBe("session-under-test");
 	});
 
-	it("falls back to the account id when the credential carries no email", () => {
-		const rendered = renderSegment("account", createAccountContext({ accountId: "acct-4711" }, {}));
+	it("splits a person-suffixed api-key clone into provider and client", () => {
+		const rendered = renderSegment(
+			"account",
+			createAccountContext(undefined, {}, "nr-alibaba", { "nr-alibaba": "nr" }),
+		);
 
 		expect(rendered.visible).toBe(true);
-		expect(rendered.content).toContain("acct-4711");
+		expect(rendered.content).toContain(`alibaba${theme.sep.dot}nr`);
+		expect(rendered.content).not.toContain("nr-alibaba");
 	});
 
-	it("renders the configured tag instead of the email, matching case-insensitively", () => {
+	it("matches tag keys case-insensitively", () => {
 		const rendered = renderSegment(
 			"account",
 			createAccountContext({ email: "Mahendra.Kalkura@FulcrumSaaS.com" }, {}, "anthropic", {
 				"mahendra.kalkura@fulcrumsaas.com": "jg",
-				"mahendrakalkura@gmail.com": "mk",
 			}),
 		);
 
-		expect(rendered.content).toContain("jg");
+		expect(rendered.content).toContain(`anthropic${theme.sep.dot}jg`);
 		expect(rendered.content).not.toContain("fulcrumsaas");
 	});
 
-	it("names an unmapped account by email rather than hiding it", () => {
+	it("names an unmapped login by email rather than hiding it", () => {
 		const rendered = renderSegment(
 			"account",
 			createAccountContext({ email: "someone@elsewhere.test" }, {}, "anthropic", {
@@ -120,13 +128,21 @@ describe("status line account segment", () => {
 			}),
 		);
 
-		expect(rendered.content).toContain("someone@elsewhere.test");
+		expect(rendered.content).toContain(`anthropic${theme.sep.dot}someone@elsewhere.test`);
 	});
 
-	it("hides itself on an api-key provider with no oauth identity", () => {
-		const rendered = renderSegment("account", createAccountContext(undefined, {}));
+	it("falls back to the account id when the credential carries no email", () => {
+		const rendered = renderSegment("account", createAccountContext({ accountId: "acct-4711" }, {}));
 
-		expect(rendered).toEqual({ content: "", visible: false });
+		expect(rendered.content).toContain(`anthropic${theme.sep.dot}acct-4711`);
+	});
+
+	it("names the provider alone when no client is known", () => {
+		const rendered = renderSegment("account", createAccountContext(undefined, {}, "nr-alibaba"));
+
+		expect(rendered.visible).toBe(true);
+		expect(rendered.content).toContain("nr-alibaba");
+		expect(rendered.content).not.toContain(theme.sep.dot);
 	});
 
 	it("hides itself before a model is resolved", () => {
@@ -137,13 +153,15 @@ describe("status line account segment", () => {
 		expect(lookup.provider).toBeUndefined();
 	});
 
-	it("keeps the icon and elides the account while the bar is still starting", () => {
-		const ctx = createAccountContext({ email: "mk@example.com" }, {});
+	it("keeps the icon and elides provider and client while the bar is still starting", () => {
+		const ctx = createAccountContext({ email: "mahendrakalkura@gmail.com" }, {}, "anthropic", {
+			"mahendrakalkura@gmail.com": "mk",
+		});
 		ctx.startupPlaceholder = true;
 		const rendered = renderSegment("account", ctx);
 
 		expect(rendered.visible).toBe(true);
 		expect(rendered.content).toContain(theme.icon.account);
-		expect(rendered.content).not.toContain("mk@example.com");
+		expect(rendered.content).not.toContain("anthropic");
 	});
 });

@@ -14,6 +14,8 @@ export interface GallerySessionOptions {
 	goalStatus?: "active" | "paused" | "complete" | "budget-limited" | "dropped";
 	/** Email of the session-sticky OAuth account; `null` renders an API-key provider. */
 	oauthEmail?: string | null;
+	/** Provider id serving the model; a person-suffixed clone shows the split rendering. */
+	provider?: string;
 }
 
 /** Deterministic session double for production composer/status renderers. */
@@ -24,7 +26,7 @@ export function createGallerySession(options: GallerySessionOptions = {}): Agent
 		name: "Claude Sonnet 4.5",
 		contextWindow: GALLERY_CONTEXT_WINDOW,
 		thinking: true,
-		provider: "anthropic",
+		provider: options.provider ?? "anthropic",
 	};
 	const messages = [{ role: "user", content: "Show the production preview" }];
 	const goalStatus = options.goalStatus ?? "active";

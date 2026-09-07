@@ -21,9 +21,12 @@ export interface CollabStatus {
 
 export interface StatusLineSegmentOptions {
 	/**
-	 * `tags` maps an OAuth identity — email, else account id — to the short label
-	 * the `account` segment renders. Keys match case-insensitively; an identity
-	 * with no entry falls back to its email, so an unmapped login is still named.
+	 * `tags` names the client behind a credential for the `account` segment. Keys
+	 * are a credential email, an account id, or a provider id, matched
+	 * case-insensitively; the value is the short client label. An OAuth identity
+	 * with no entry falls back to its email, so an unmapped login is still named,
+	 * and a provider id that opens with its own tag renders the remainder as the
+	 * provider, so `nr-alibaba` reads `alibaba · nr`.
 	 */
 	account?: { tags?: Record<string, string> };
 	model?: { showThinkingLevel?: boolean };

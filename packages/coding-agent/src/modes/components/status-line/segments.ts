@@ -779,7 +779,7 @@ const profileSegment: StatusLineSegment = {
 	},
 };
 
-/** Case-insensitive lookup of a configured tag for one OAuth identity field. */
+/** Case-insensitive lookup of a configured client tag for one identity key. */
 function accountTag(tags: Record<string, string> | undefined, key: string | undefined): string | undefined {
 	if (!tags || !key) return undefined;
 	const wanted = key.toLowerCase();
@@ -790,15 +790,18 @@ function accountTag(tags: Record<string, string> | undefined, key: string | unde
 }
 
 /**
- * Names the OAuth account serving this session's model provider, for providers
- * that hold more than one login. The identity is session-sticky: it is the
- * credential this session resolved on its first request or pinned since, so a
- * rotation onto another account changes what this renders. Hidden on providers
- * authenticated by an API key, which carry no OAuth identity.
+ * Names the provider serving this session and the client paying for it, which
+ * are carried in two different places. A provider holding several OAuth logins
+ * (three on `anthropic`, two on `openai-codex`) identifies the client by the
+ * session-sticky credential's email, so the field follows a mid-session
+ * rotation or a `/login` pin. A person-suffixed API-key clone carries no
+ * credential identity and fuses both facts into its provider id, so `nr-alibaba`
+ * splits back into the `alibaba` provider and the `nr` client.
  *
- * `segmentOptions.account.tags` maps an identity to a short label, because
- * accounts on one provider differ only in a long email whose local parts can be
- * near-identical. An unmapped identity renders its email rather than nothing.
+ * `segmentOptions.account.tags` supplies the client, keyed by credential email,
+ * account id, or provider id. Both parts are configuration rather than
+ * derivation: the three anthropic emails differ only in their domain, and a
+ * provider id prefix is only an account when the tag map says so.
  */
 const accountSegment: StatusLineSegment = {
 	id: "account",
@@ -808,20 +811,24 @@ const accountSegment: StatusLineSegment = {
 
 		const authStorage = ctx.session.modelRegistry?.authStorage;
 		const identity = authStorage?.getOAuthAccountIdentity(provider, ctx.session.sessionId);
-		if (!identity) return { content: "", visible: false };
-
 		const tags = ctx.options.account?.tags;
-		const label =
-			accountTag(tags, identity.email) ??
-			accountTag(tags, identity.accountId) ??
-			identity.email ??
-			identity.accountId ??
-			identity.orgName ??
-			identity.projectId;
-		if (!label) return { content: "", visible: false };
+		const client =
+			accountTag(tags, identity?.email) ??
+			accountTag(tags, identity?.accountId) ??
+			accountTag(tags, provider) ??
+			identity?.email ??
+			identity?.accountId ??
+			identity?.orgName ??
+			identity?.projectId;
 
-		// Emails and org names come from the provider, so they are sanitized like
-		// any other foreign text before they reach the bar.
+		// A clone's provider id already opens with its client tag, so rendering
+		// both would repeat it: `nr-alibaba · nr`.
+		const prefix = client ? `${client.toLowerCase()}-` : "";
+		const endpoint = prefix && provider.toLowerCase().startsWith(prefix) ? provider.slice(prefix.length) : provider;
+
+		// Provider ids are local, but emails and org names come from the provider,
+		// so both parts are sanitized like any other foreign text.
+		const label = client ? `${endpoint}${theme.sep.dot}${client}` : endpoint;
 		const display = ctx.startupPlaceholder
 			? STARTUP_PLACEHOLDER
 			: truncateToWidth(sanitizeStatusText(label), TRUNCATE_LENGTHS.SHORT);

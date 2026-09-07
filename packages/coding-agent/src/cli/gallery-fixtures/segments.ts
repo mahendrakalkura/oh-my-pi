@@ -253,12 +253,17 @@ function variantsFor(id: StatusLineSegmentId): readonly SegmentVariantSpec[] {
 		case "account":
 			return [
 				{
-					label: "tagged account",
+					label: "oauth login",
 					session: { oauthEmail: "agent@example.com" },
 					context: { options: { account: { tags: { "agent@example.com": "mk" } } } },
 				},
-				{ label: "untagged account", session: { oauthEmail: "agent@example.com" } },
-				{ label: "api key provider", session: { oauthEmail: null } },
+				{
+					label: "api-key clone",
+					session: { oauthEmail: null, provider: "nr-alibaba" },
+					context: { options: { account: { tags: { "nr-alibaba": "nr" } } } },
+				},
+				{ label: "untagged login", session: { oauthEmail: "agent@example.com" } },
+				{ label: "untagged provider", session: { oauthEmail: null, provider: "nr-alibaba" } },
 			];
 		default:
 			return [{ label: "canonical" }];
