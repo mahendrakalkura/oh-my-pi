@@ -47,7 +47,7 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 				"process.env.PI_DOCS_EMBED": JSON.stringify((await buildDocsIndexPayload()).payload),
 			},
 			minify: {
-				identifiers: options.minifyIdentifiers ?? false,
+				identifiers: true,
 				keepNames: true,
 			},
 			plugins: [await createLegacyPiVirtualModulePlugin()],
